@@ -1,0 +1,75 @@
+# Docker Compose for E2E VoNR voice test using UERANSIM + pjsua
+#
+# Prerequisites:
+#   1. Core + IMS stack running: docker compose -f sa-vonr-deploy.yaml up -d
+#   2. gNB running:              docker compose -f nr-gnb.yaml up -d
+#   3. pjsua image built:        ./operate/scripts/build.sh
+#   4. Subscribers provisioned:   ./operate/scripts/provision.sh
+#
+# Usage:
+#   docker compose -f operate/e2e-vonr.yaml up -d
+#   docker compose -f operate/e2e-vonr.yaml logs -f
+
+services:
+  e2e_ue1:
+    image: docker_ueransim_pjsua
+    container_name: e2e_ue1
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ueransim:/mnt/ueransim
+      - ./ueransim/pjsua_entrypoint.sh:/usr/local/bin/pjsua_entrypoint.sh:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - ../.env
+      - ./e2e.env
+    environment:
+      - COMPONENT_NAME=ueransim-ue1
+      - IMSI=${UE1_IMSI}
+      - MSISDN=${UE1_MSISDN}
+      - SIP_PASSWORD=${UE1_KI}
+      - AUTO_ANSWER=yes
+      - NULL_AUDIO=yes
+    expose:
+      - "4997/udp"
+    cap_add:
+      - NET_ADMIN
+    privileged: true
+    networks:
+      default:
+        ipv4_address: ${UE1_IP}
+
+  e2e_ue2:
+    image: docker_ueransim_pjsua
+    container_name: e2e_ue2
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ueransim:/mnt/ueransim
+      - ./ueransim/pjsua_entrypoint.sh:/usr/local/bin/pjsua_entrypoint.sh:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    env_file:
+      - ../.env
+      - ./e2e.env
+    environment:
+      - COMPONENT_NAME=ueransim-ue2
+      - IMSI=${UE2_IMSI}
+      - MSISDN=${UE2_MSISDN}
+      - SIP_PASSWORD=${UE2_KI}
+      - AUTO_ANSWER=yes
+      - NULL_AUDIO=yes
+    expose:
+      - "4997/udp"
+    cap_add:
+      - NET_ADMIN
+    privileged: true
+    networks:
+      default:
+        ipv4_address: ${UE2_IP}
+
+networks:
+  default:
+    external: true
+    name: docker_open5gs_default
