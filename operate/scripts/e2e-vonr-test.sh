@@ -130,6 +130,9 @@ build_if_missing "docker_ueransim_pjsua" -f "operate/ueransim/Dockerfile" "opera
 # =========================================================================
 log_step "Step 4/10: Applying digest auth Kamailio configs"
 
+docker cp "$REPO_ROOT/operate/kamailio/pcscf/kamailio_pcscf.cfg" pcscf:/etc/kamailio_pcscf/kamailio_pcscf.cfg
+log_ok "P-CSCF kamailio config updated (UDP for oversized SIP messages)"
+
 docker cp "$REPO_ROOT/operate/kamailio/pcscf/pcscf.cfg" pcscf:/mnt/pcscf/pcscf.cfg
 log_ok "P-CSCF config updated (IPsec disabled)"
 

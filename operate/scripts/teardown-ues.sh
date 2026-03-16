@@ -24,6 +24,8 @@ echo ""
 echo "Restoring original Kamailio configs..."
 
 if docker ps --format '{{.Names}}' | grep -q "^pcscf$"; then
+    echo "  Restoring P-CSCF kamailio config (udp_mtu_try_proto=TCP)..."
+    docker cp "$REPO_ROOT/pcscf/kamailio_pcscf.cfg" pcscf:/etc/kamailio_pcscf/kamailio_pcscf.cfg
     echo "  Restoring P-CSCF config (WITH_IPSEC enabled)..."
     docker cp "$REPO_ROOT/pcscf/pcscf.cfg" pcscf:/mnt/pcscf/pcscf.cfg
     docker restart pcscf

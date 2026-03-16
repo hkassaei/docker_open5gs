@@ -53,6 +53,9 @@ echo "  All required containers are running."
 echo ""
 echo "--- Step 2: Applying digest auth Kamailio configs ---"
 
+echo "  Copying modified P-CSCF kamailio config (UDP for oversized SIP)..."
+docker cp "$REPO_ROOT/operate/kamailio/pcscf/kamailio_pcscf.cfg" pcscf:/etc/kamailio_pcscf/kamailio_pcscf.cfg
+
 echo "  Copying modified P-CSCF config (IPsec disabled)..."
 docker cp "$REPO_ROOT/operate/kamailio/pcscf/pcscf.cfg" pcscf:/mnt/pcscf/pcscf.cfg
 
