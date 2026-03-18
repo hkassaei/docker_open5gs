@@ -21,6 +21,8 @@ from pathlib import Path
 
 from aiohttp import web
 
+from metrics import MetricsCollector
+
 log = logging.getLogger("vonr-gui")
 
 # ---------------------------------------------------------------------------
@@ -247,10 +249,32 @@ async def handle_ue_action(request: web.Request) -> web.Response:
     return web.json_response({"ok": False, "error": err or out}, status=500)
 
 
+async def handle_topology(request: web.Request) -> web.Response:
+    """Return the live network topology as a JSON graph."""
+    from topology import build_topology
+    topo = await build_topology(_env)
+    return web.json_response(topo.to_dict())
+
+
+async def handle_metrics(request: web.Request) -> web.Response:
+    """Return live metrics for all NFs (Prometheus + IMS stats)."""
+    collector: MetricsCollector = request.app["metrics"]
+    data = await collector.collect()
+    return web.json_response(data)
+
+
+async def handle_metrics_history(request: web.Request) -> web.Response:
+    """Return metrics history for a single node (for sparklines)."""
+    node_id = request.match_info["node_id"]
+    collector: MetricsCollector = request.app["metrics"]
+    return web.json_response(collector.history(node_id))
+
+
 async def handle_explain(request: web.Request) -> web.Response:
-    """Send UE logs to Claude Code CLI and return a plain-English explanation."""
+    """Send container logs to Claude Code CLI and return a plain-English explanation."""
     body = await request.json()
     logs = body.get("logs", "")
+    container = body.get("container", "")
     if not logs.strip():
         return web.json_response({"ok": False, "error": "No logs provided"}, status=400)
 
@@ -260,11 +284,37 @@ async def handle_explain(request: web.Request) -> web.Response:
         lines = lines[-500:]
         logs = "\n".join(lines)
 
+    # Build a container-aware prompt
+    _NF_CONTEXT = {
+        "amf":       "the AMF (Access and Mobility Management Function) in a 5G SA core",
+        "smf":       "the SMF (Session Management Function) in a 5G SA core",
+        "upf":       "the UPF (User Plane Function) in a 5G SA core",
+        "nrf":       "the NRF (NF Repository Function / service discovery) in a 5G SA core",
+        "scp":       "the SCP (Service Communication Proxy) in a 5G SA core",
+        "ausf":      "the AUSF (Authentication Server Function) in a 5G SA core",
+        "udm":       "the UDM (Unified Data Management) in a 5G SA core",
+        "udr":       "the UDR (Unified Data Repository) in a 5G SA core",
+        "pcf":       "the PCF (Policy Control Function) in a 5G SA core",
+        "pcscf":     "the P-CSCF (Proxy-CSCF / SIP edge proxy) in the IMS",
+        "icscf":     "the I-CSCF (Interrogating-CSCF) in the IMS",
+        "scscf":     "the S-CSCF (Serving-CSCF) in the IMS",
+        "pyhss":     "PyHSS (the Home Subscriber Server) in the IMS",
+        "rtpengine": "RTPEngine (the media relay / RTP proxy) in the IMS",
+        "mongo":     "MongoDB (the subscriber data store for the 5G core)",
+        "mysql":     "MySQL (the subscriber data store for the IMS)",
+        "dns":       "the DNS server for the IMS/5G network",
+        "nr_gnb":    "the gNB (UERANSIM gNodeB / 5G base station)",
+        "e2e_ue1":   "UE1 (UERANSIM UE + pjsua VoIMS client)",
+        "e2e_ue2":   "UE2 (UERANSIM UE + pjsua VoIMS client)",
+    }
+    nf_desc = _NF_CONTEXT.get(container, f"the '{container}' container")
+
     prompt = (
-        "Explain these VoNR (Voice over New Radio) UE logs in plain English. "
+        f"Explain these logs from {nf_desc} in a VoNR (Voice over New Radio) / "
+        f"IMS deployment (Open5GS + Kamailio + UERANSIM). "
         "Walk through what happened step by step. Keep it concise but informative. "
-        "Highlight anything notable — successful registrations, call setup, "
-        "errors, or unusual behavior.\n\n"
+        "Highlight anything notable — successful operations, errors, warnings, "
+        "or unusual behavior.\n\n"
         f"Logs:\n{logs}"
     )
 
@@ -441,8 +491,12 @@ async def handle_logs_ws(request: web.Request) -> web.WebSocketResponse:
 # ---------------------------------------------------------------------------
 def create_app() -> web.Application:
     app = web.Application()
+    app["metrics"] = MetricsCollector(_env)
     app.router.add_get("/", handle_index)
     app.router.add_get("/api/status", handle_status)
+    app.router.add_get("/api/topology", handle_topology)
+    app.router.add_get("/api/metrics", handle_metrics)
+    app.router.add_get("/api/metrics/history/{node_id}", handle_metrics_history)
     app.router.add_get("/ws/deploy", handle_deploy)
     app.router.add_get("/ws/deploy-ues", handle_deploy_ues)
     app.router.add_get("/ws/teardown-ues", handle_teardown_ues)

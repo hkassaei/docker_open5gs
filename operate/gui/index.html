@@ -30,12 +30,18 @@
   header {
     background: var(--surface);
     border-bottom: 1px solid var(--border);
-    padding: 16px 24px;
+    padding: 12px 24px;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    gap: 20px;
   }
   header h1 { font-size: 20px; font-weight: 600; }
+  header .header-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
   header .status-pill {
     padding: 4px 14px;
     border-radius: 12px;
@@ -48,26 +54,57 @@
   .pill-busy    { background: #4f8ff733; color: var(--accent); }
 
   main {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: auto 1fr;
-    gap: 16px;
-    padding: 16px 24px;
+    display: flex;
+    flex-direction: column;
+    padding: 0 24px;
     height: calc(100vh - 65px);
   }
 
-  /* Stack controls — spans full width */
+  /* Stack controls */
   .stack-controls {
-    grid-column: 1 / -1;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 16px 20px;
+    padding: 12px 16px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+    flex-shrink: 0;
   }
   .stack-controls h2 { font-size: 15px; margin-right: auto; }
+
+  /* Tab switcher — lives in the header */
+  .tab-bar {
+    display: flex;
+    gap: 2px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 3px;
+  }
+  .tab-btn {
+    font-size: 13px;
+    font-weight: 500;
+    padding: 6px 16px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--text-dim);
+    transition: all 0.15s;
+  }
+  .tab-btn:hover { color: var(--text); background: var(--surface2); }
+  .tab-btn.active { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+
+  /* Tab content */
+  .tab-content {
+    flex: 1;
+    min-height: 0;
+    display: none;
+  }
+  .tab-content.active { display: flex; }
+  .tab-topology { flex-direction: column; }
+  .tab-ue-control { gap: 16px; }
 
   button {
     font-family: inherit;
@@ -101,6 +138,7 @@
     flex-direction: column;
     overflow: hidden;
     min-height: 0;
+    flex: 1;
   }
   .ue-header {
     padding: 12px 16px;
@@ -184,6 +222,26 @@
   }
   .btn-ai:hover:not(:disabled) { opacity: 0.85; }
   .btn-ai:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-ai-sm {
+    font-size: 11px;
+    padding: 3px 10px;
+    width: auto;
+    flex-shrink: 0;
+  }
+  .detail-logs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 14px 4px;
+    flex-shrink: 0;
+  }
+  .detail-logs-header h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+    padding: 0;
+  }
 
   /* AI explanation modal */
   .ai-modal .modal { width: 600px; }
@@ -289,18 +347,252 @@
     border-top: 1px solid var(--border);
     text-align: right;
   }
+
+  /* Topology panel */
+  .topology-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
+  .topology-header {
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .topology-header h2 { font-size: 15px; }
+  .topology-header .topo-controls { display: flex; gap: 6px; align-items: center; }
+  .topology-body.collapsed { display: none; }
+
+  /* Plane filter toggles */
+  .plane-filters { display: flex; gap: 4px; align-items: center; margin-right: 12px; }
+  .plane-filter {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    background: var(--surface2);
+    color: var(--text);
+    transition: opacity 0.15s;
+  }
+  .plane-filter.active { opacity: 1; }
+  .plane-filter.inactive { opacity: 0.35; }
+  .plane-filter .pf-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+    vertical-align: middle;
+  }
+
+  /* Legend */
+  .topo-legend {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .topo-legend .legend-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 3px;
+    vertical-align: middle;
+  }
+
+  /* SVG */
+  .topology-body {
+    flex: 1;
+    min-height: 0;
+    position: relative;
+  }
+  .topology-svg {
+    width: 100%;
+    height: 100%;
+  }
+  .topo-node { cursor: pointer; }
+  .topo-node rect {
+    transition: fill 0.5s, stroke 0.5s, opacity 0.5s;
+  }
+  .topo-node text { fill: var(--text); font-size: 11px; font-weight: 600; pointer-events: none; }
+  .topo-node .sublabel { font-size: 9px; fill: var(--text-dim); font-weight: 400; }
+  .topo-node .status-dot { transition: fill 0.5s; }
+  .topo-node.node-down rect { opacity: 0.4; }
+  .topo-node.node-down text { opacity: 0.5; }
+
+  .topo-edge { transition: opacity 0.5s; }
+  .topo-edge.edge-inactive { opacity: 0.25; }
+
+  /* Hide edges by plane — targets both edge groups and standalone bus elements */
+  .plane-hidden-control [data-plane="control"] { display: none; }
+  .plane-hidden-data [data-plane="data"] { display: none; }
+  .plane-hidden-signaling [data-plane="signaling"] { display: none; }
+  .plane-hidden-management [data-plane="management"] { display: none; }
+
+  /* Tooltip */
+  .topo-tooltip {
+    position: absolute;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 10;
+    display: none;
+    max-width: 250px;
+    line-height: 1.5;
+  }
+  .topo-tooltip .tt-label { font-weight: 600; margin-bottom: 4px; }
+  .topo-tooltip .tt-dim { color: var(--text-dim); }
+
+  /* Metric badges on SVG nodes */
+  .topo-badge {
+    font-size: 9px;
+    fill: var(--accent);
+    text-anchor: middle;
+    pointer-events: none;
+    font-weight: 500;
+  }
+
+  /* Metrics detail side-panel */
+  .topology-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+  .metrics-detail {
+    width: 0;
+    overflow: hidden;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    transition: width 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .metrics-detail.open {
+    width: 340px;
+  }
+  .detail-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+  }
+  .detail-header h3 { font-size: 14px; }
+  .detail-close {
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    cursor: pointer;
+    font-size: 18px;
+    padding: 2px 6px;
+    line-height: 1;
+  }
+  .detail-close:hover { color: var(--text); }
+  .detail-info {
+    padding: 8px 14px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .detail-info .info-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 2px;
+  }
+  .detail-section {
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .detail-section h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    letter-spacing: 0.05em;
+  }
+  .metric-row {
+    display: flex;
+    align-items: center;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+  .metric-row .metric-name { color: var(--text-dim); flex: 1; }
+  .metric-row .metric-value {
+    font-weight: 600;
+    margin-right: 8px;
+    min-width: 40px;
+    text-align: right;
+  }
+  .metric-row .sparkline-container { width: 60px; height: 20px; }
+  .detail-logs {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .detail-logs > h4 {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    padding: 8px 14px 4px;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+  }
+  .detail-log-area {
+    flex: 1;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 4px 14px;
+    background: var(--bg);
+  }
+  .detail-log-area div {
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+
+  /* Edge flow animation for active data edges */
+  @keyframes edgeFlow {
+    from { stroke-dashoffset: 20; }
+    to   { stroke-dashoffset: 0; }
+  }
 </style>
 </head>
 <body>
 
 <header>
   <h1>VoNR Learning Tool</h1>
-  <div id="stack-status" class="status-pill pill-down">Checking...</div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('topology')">Topology</button>
+    <button class="tab-btn" onclick="switchTab('ue-control')">UE Control</button>
+  </div>
+  <div class="header-right">
+    <div id="stack-status" class="status-pill pill-down">Checking...</div>
+  </div>
 </header>
 
 <main>
   <!-- Stack controls -->
-  <div class="stack-controls">
+  <div class="stack-controls" style="margin:12px 0;flex-shrink:0">
     <h2>Stack Management</h2>
     <button id="btn-deploy" class="primary" onclick="deployStack()">Deploy Stack</button>
     <button id="btn-deploy-ues" class="primary" onclick="deployUEs()">Deploy UEs</button>
@@ -309,6 +601,45 @@
     <span style="border-left:1px solid var(--border);height:24px;margin:0 4px"></span>
     <button id="btn-investigate" class="primary" onclick="openInvestigate()">Investigate</button>
   </div>
+
+  <!-- Tab: Topology -->
+  <div class="tab-content tab-topology active" id="tab-topology">
+    <div class="topology-panel" id="topology-panel">
+      <div class="topology-header">
+        <h2>Network Topology</h2>
+        <div class="topo-controls">
+          <div class="plane-filters">
+            <button class="plane-filter active" data-plane="control" onclick="togglePlane('control',this)">
+              <span class="pf-dot" style="background:#4f8ff7"></span>Control
+            </button>
+            <button class="plane-filter active" data-plane="data" onclick="togglePlane('data',this)">
+              <span class="pf-dot" style="background:#4caf50"></span>Data
+            </button>
+            <button class="plane-filter active" data-plane="signaling" onclick="togglePlane('signaling',this)">
+              <span class="pf-dot" style="background:#26c6da"></span>Signaling
+            </button>
+            <button class="plane-filter active" data-plane="management" onclick="togglePlane('management',this)">
+              <span class="pf-dot" style="background:#8b90a5"></span>Mgmt
+            </button>
+          </div>
+          <div class="topo-legend">
+            <span><span class="legend-dot" style="background:var(--green)"></span>Healthy</span>
+            <span><span class="legend-dot" style="background:var(--red)"></span>Down</span>
+          </div>
+        </div>
+      </div>
+      <div class="topology-main">
+        <div class="topology-body" id="topology-body">
+          <svg class="topology-svg" id="topology-svg" viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="topo-tooltip" id="topo-tooltip"></div>
+        </div>
+        <div class="metrics-detail" id="metrics-detail"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: UE Control -->
+  <div class="tab-content tab-ue-control" id="tab-ue-control">
 
   <!-- UE1 panel -->
   <div class="ue-panel">
@@ -369,6 +700,8 @@
       <div class="log-area" id="ue2-logs"></div>
     </div>
   </div>
+
+  </div><!-- /tab-ue-control -->
 </main>
 
 <!-- Deploy/Teardown output modal -->
@@ -701,6 +1034,53 @@ async function explainLogs(ue) {
   btn.textContent = 'AI Explain';
 }
 
+async function explainDetailLogs() {
+  const btn = document.getElementById('detail-ai-btn');
+  const logArea = document.getElementById('detail-log-area');
+  if (!logArea || !detailNodeId) return;
+
+  const lines = [];
+  for (const el of logArea.children) {
+    lines.push(el.textContent);
+  }
+
+  if (lines.length === 0) {
+    alert('No logs to explain.');
+    return;
+  }
+
+  const node = lastTopology?.nodes?.find(n => n.id === detailNodeId);
+  const label = node?.label || detailNodeId;
+
+  const overlay = document.getElementById('ai-overlay');
+  const body = document.getElementById('ai-body');
+  document.getElementById('ai-title').textContent = `AI Explanation — ${label}`;
+  body.textContent = 'Analyzing logs...';
+  overlay.classList.add('active');
+
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  try {
+    const res = await fetch(`${API_BASE}/explain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ logs: lines.join('\n'), container: detailNodeId }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      body.textContent = data.explanation;
+    } else {
+      body.textContent = `Error: ${data.error}`;
+    }
+  } catch (e) {
+    body.textContent = `Error: ${e.message}`;
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'AI Explain';
+}
+
 function closeAiModal() {
   document.getElementById('ai-overlay').classList.remove('active');
 }
@@ -984,9 +1364,701 @@ function closeInvestigation() {
   document.getElementById('inv-overlay').classList.remove('active');
 }
 
+// --- Topology ---
+const TOPO_SVG_W = 1000;
+const TOPO_SVG_H = 400;
+const TOPO_ROWS = 5;
+const TOPO_SLOTS = 9;
+const NODE_W = 80;
+const NODE_H = 36;
+
+// SBI bus NFs — drawn as stubs to a horizontal bus line
+const SBI_BUS_NFS = ['nrf','scp','ausf','udm','udr','amf','smf','pcf'];
+
+// Layer border colors
+const LAYER_COLORS = {
+  core: '#4f8ff7', ims: '#26c6da', ran: '#ab47bc', ue: '#4caf50', data: '#8b90a5'
+};
+
+// Edge style by plane
+const PLANE_STYLES = {
+  control:    { stroke: '#4f8ff7', dash: '',      width: 1.5 },
+  data:       { stroke: '#4caf50', dash: '6,3',   width: 1.5 },
+  signaling:  { stroke: '#26c6da', dash: '2,3',   width: 1.5 },
+  management: { stroke: '#8b90a5', dash: '',       width: 1 },
+};
+
+let lastTopology = null;
+
+function gridToSvg(row, slot) {
+  const x = (slot + 0.5) / TOPO_SLOTS * TOPO_SVG_W;
+  const y = (row + 0.5) / TOPO_ROWS * TOPO_SVG_H;
+  return { x, y };
+}
+
+async function pollTopology() {
+  try {
+    const res = await fetch(`${API_BASE}/topology`);
+    const data = await res.json();
+    lastTopology = data;
+    renderTopology(data);
+  } catch (e) {
+    // Silently skip — status polling still works
+  }
+}
+
+function renderTopology(topo) {
+  const svg = document.getElementById('topology-svg');
+  const ns = 'http://www.w3.org/2000/svg';
+
+  // Build node position map
+  const nodeMap = {};
+  for (const n of topo.nodes) {
+    const pos = gridToSvg(n.row, n.slot);
+    nodeMap[n.id] = { ...n, cx: pos.x, cy: pos.y };
+  }
+
+  // Clear SVG
+  svg.innerHTML = '';
+
+  // --- SBI Bus ---
+  const sbiNodes = SBI_BUS_NFS.filter(id => nodeMap[id]);
+  if (sbiNodes.length >= 2) {
+    const busY = gridToSvg(1, 0).y; // Core row Y
+    const xs = sbiNodes.map(id => nodeMap[id].cx).sort((a, b) => a - b);
+    const busX1 = xs[0] - 20;
+    const busX2 = xs[xs.length - 1] + 20;
+
+    const sbiEdgeInfo = { label: 'SBI Service Bus', protocol: 'HTTP/2', interface: 'SBI', plane: 'control', source: 'NRF/SCP', target: 'All Core NFs', active: true };
+
+    // Bus group (hit-area + visible line + label)
+    const busG = document.createElementNS(ns, 'g');
+    busG.classList.add('topo-edge');
+    busG.classList.add('topo-edge-group');
+    busG.setAttribute('data-plane', 'control');
+
+    // Invisible hit-area for the bus line
+    const busHit = document.createElementNS(ns, 'line');
+    busHit.setAttribute('x1', busX1);
+    busHit.setAttribute('y1', busY - NODE_H / 2 - 14);
+    busHit.setAttribute('x2', busX2);
+    busHit.setAttribute('y2', busY - NODE_H / 2 - 14);
+    busHit.setAttribute('stroke', 'transparent');
+    busHit.setAttribute('stroke-width', '14');
+    busHit.style.pointerEvents = 'stroke';
+    busG.appendChild(busHit);
+
+    // Visible bus line
+    const busLine = document.createElementNS(ns, 'line');
+    busLine.setAttribute('x1', busX1);
+    busLine.setAttribute('y1', busY - NODE_H / 2 - 14);
+    busLine.setAttribute('x2', busX2);
+    busLine.setAttribute('y2', busY - NODE_H / 2 - 14);
+    busLine.setAttribute('stroke', '#4f8ff7');
+    busLine.setAttribute('stroke-width', '2.5');
+    busLine.setAttribute('opacity', '0.5');
+    busLine.style.pointerEvents = 'none';
+    busLine.classList.add('topo-edge-visual');
+    busG.appendChild(busLine);
+
+    // Bus label
+    const busLabel = document.createElementNS(ns, 'text');
+    busLabel.setAttribute('x', (busX1 + busX2) / 2);
+    busLabel.setAttribute('y', busY - NODE_H / 2 - 20);
+    busLabel.setAttribute('text-anchor', 'middle');
+    busLabel.setAttribute('fill', '#4f8ff7');
+    busLabel.setAttribute('font-size', '10');
+    busLabel.setAttribute('opacity', '0.7');
+    busLabel.textContent = 'SBI Service Bus';
+    busLabel.style.pointerEvents = 'none';
+    busG.appendChild(busLabel);
+
+    busG.addEventListener('mouseenter', (ev) => showEdgeTooltip(ev, sbiEdgeInfo));
+    busG.addEventListener('mouseleave', hideTooltip);
+    svg.appendChild(busG);
+
+    // Stubs from each NF to the bus
+    for (const id of sbiNodes) {
+      const n = nodeMap[id];
+      const stubG = document.createElementNS(ns, 'g');
+      stubG.classList.add('topo-edge');
+      stubG.classList.add('topo-edge-group');
+      stubG.setAttribute('data-plane', 'control');
+      stubG.setAttribute('data-edge-src', id);
+      stubG.setAttribute('data-edge-tgt', 'sbi_bus');
+
+      // Invisible hit-area
+      const stubHit = document.createElementNS(ns, 'line');
+      stubHit.setAttribute('x1', n.cx);
+      stubHit.setAttribute('y1', n.cy - NODE_H / 2);
+      stubHit.setAttribute('x2', n.cx);
+      stubHit.setAttribute('y2', busY - NODE_H / 2 - 14);
+      stubHit.setAttribute('stroke', 'transparent');
+      stubHit.setAttribute('stroke-width', '14');
+      stubHit.style.pointerEvents = 'stroke';
+      stubG.appendChild(stubHit);
+
+      // Visible stub
+      const stub = document.createElementNS(ns, 'line');
+      stub.setAttribute('x1', n.cx);
+      stub.setAttribute('y1', n.cy - NODE_H / 2);
+      stub.setAttribute('x2', n.cx);
+      stub.setAttribute('y2', busY - NODE_H / 2 - 14);
+      stub.setAttribute('stroke', '#4f8ff7');
+      stub.setAttribute('stroke-width', '1.5');
+      stub.setAttribute('opacity', n.status === 'running' ? '0.5' : '0.15');
+      stub.style.pointerEvents = 'none';
+      stub.classList.add('topo-edge-visual');
+      stubG.appendChild(stub);
+
+      const stubInfo = { label: `SBI (${nodeMap[id].label})`, protocol: 'HTTP/2', interface: 'SBI', plane: 'control', source: id, target: 'NRF/SCP', active: n.status === 'running' };
+      stubG.addEventListener('mouseenter', (ev) => showEdgeTooltip(ev, stubInfo));
+      stubG.addEventListener('mouseleave', hideTooltip);
+      svg.appendChild(stubG);
+    }
+  }
+
+  // --- Edges (non-SBI) ---
+  // Each edge is a <g> containing: invisible wide hit-area + visible styled line.
+  // The hit-area ensures reliable mouse detection on thin lines.
+  for (const e of topo.edges) {
+    // Skip SBI edges — rendered as bus above
+    if (e.protocol === 'SBI') continue;
+
+    const src = nodeMap[e.source];
+    const tgt = nodeMap[e.target];
+    if (!src || !tgt) continue;
+
+    const style = PLANE_STYLES[e.plane] || PLANE_STYLES.control;
+    const g = document.createElementNS(ns, 'g');
+    g.classList.add('topo-edge');
+    g.classList.add('topo-edge-group');
+    if (!e.active) g.classList.add('edge-inactive');
+    g.setAttribute('data-plane', e.plane);
+    g.setAttribute('data-edge-src', e.source);
+    g.setAttribute('data-edge-tgt', e.target);
+
+    if (e.logical) {
+      // N1 NAS: curved dashed arc
+      const dx = tgt.cx - src.cx;
+      const dy = tgt.cy - src.cy;
+      const cx1 = src.cx + dx * 0.2 - 40;
+      const cy1 = src.cy + dy * 0.3;
+      const cx2 = tgt.cx - dx * 0.2 - 40;
+      const cy2 = tgt.cy - dy * 0.3;
+      const d = `M ${src.cx} ${src.cy} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${tgt.cx} ${tgt.cy}`;
+
+      // Invisible hit-area
+      const hit = document.createElementNS(ns, 'path');
+      hit.setAttribute('d', d);
+      hit.setAttribute('fill', 'none');
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', '14');
+      hit.style.pointerEvents = 'stroke';
+      g.appendChild(hit);
+
+      // Visible path
+      const path = document.createElementNS(ns, 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke', style.stroke);
+      path.setAttribute('stroke-width', '1');
+      path.setAttribute('stroke-dasharray', '4,4');
+      path.setAttribute('opacity', e.active ? '0.35' : '0.1');
+      path.style.pointerEvents = 'none';
+      path.classList.add('topo-edge-visual');
+      g.appendChild(path);
+    } else {
+      // Invisible hit-area
+      const hit = document.createElementNS(ns, 'line');
+      hit.setAttribute('x1', src.cx);
+      hit.setAttribute('y1', src.cy);
+      hit.setAttribute('x2', tgt.cx);
+      hit.setAttribute('y2', tgt.cy);
+      hit.setAttribute('stroke', 'transparent');
+      hit.setAttribute('stroke-width', '14');
+      hit.style.pointerEvents = 'stroke';
+      g.appendChild(hit);
+
+      // Visible line
+      const line = document.createElementNS(ns, 'line');
+      line.setAttribute('x1', src.cx);
+      line.setAttribute('y1', src.cy);
+      line.setAttribute('x2', tgt.cx);
+      line.setAttribute('y2', tgt.cy);
+      line.setAttribute('stroke', style.stroke);
+      line.setAttribute('stroke-width', style.width);
+      if (style.dash) line.setAttribute('stroke-dasharray', style.dash);
+      line.setAttribute('opacity', e.active ? '0.6' : '0.15');
+      line.style.pointerEvents = 'none';
+      line.classList.add('topo-edge-visual');
+      g.appendChild(line);
+    }
+
+    g.addEventListener('mouseenter', (ev) => showEdgeTooltip(ev, e));
+    g.addEventListener('mouseleave', hideTooltip);
+    g.addEventListener('click', (ev) => { ev.stopPropagation(); openEdgeDetail(e); });
+    svg.appendChild(g);
+  }
+
+  // --- Nodes ---
+  for (const n of topo.nodes) {
+    const nm = nodeMap[n.id];
+    const g = document.createElementNS(ns, 'g');
+    g.classList.add('topo-node');
+    if (n.status !== 'running') g.classList.add('node-down');
+    g.setAttribute('data-node-id', n.id);
+
+    const x = nm.cx - NODE_W / 2;
+    const y = nm.cy - NODE_H / 2;
+
+    // Background rect
+    const rect = document.createElementNS(ns, 'rect');
+    rect.setAttribute('x', x);
+    rect.setAttribute('y', y);
+    rect.setAttribute('width', NODE_W);
+    rect.setAttribute('height', NODE_H);
+    rect.setAttribute('rx', '6');
+    rect.setAttribute('fill', n.status === 'running' ? '#232735' : '#1a1d27');
+    rect.setAttribute('stroke', LAYER_COLORS[n.layer] || '#8b90a5');
+    rect.setAttribute('stroke-width', '1.5');
+    g.appendChild(rect);
+
+    // Status dot
+    const dot = document.createElementNS(ns, 'circle');
+    dot.setAttribute('cx', x + 10);
+    dot.setAttribute('cy', y + 10);
+    dot.setAttribute('r', '4');
+    dot.setAttribute('fill', n.health === 'healthy' ? '#4caf50' : '#ef5350');
+    dot.classList.add('status-dot');
+    g.appendChild(dot);
+
+    // Label
+    const label = document.createElementNS(ns, 'text');
+    label.setAttribute('x', nm.cx);
+    label.setAttribute('y', n.sublabel ? nm.cy - 1 : nm.cy + 4);
+    label.setAttribute('text-anchor', 'middle');
+    label.textContent = n.label;
+    g.appendChild(label);
+
+    // Sublabel (e.g. "PSA" for UPF)
+    if (n.sublabel) {
+      const sub = document.createElementNS(ns, 'text');
+      sub.setAttribute('x', nm.cx);
+      sub.setAttribute('y', nm.cy + 12);
+      sub.setAttribute('text-anchor', 'middle');
+      sub.classList.add('sublabel');
+      sub.textContent = n.sublabel;
+      g.appendChild(sub);
+    }
+
+    // Metric badge
+    const nodeMetrics = lastMetrics[n.id];
+    if (nodeMetrics && nodeMetrics.badge) {
+      const badge = document.createElementNS(ns, 'text');
+      badge.setAttribute('x', nm.cx);
+      badge.setAttribute('y', y + NODE_H + 12);
+      badge.setAttribute('text-anchor', 'middle');
+      badge.classList.add('topo-badge');
+      badge.textContent = nodeMetrics.badge;
+      g.appendChild(badge);
+    }
+
+    // Interactivity
+    g.addEventListener('mouseenter', (ev) => showNodeTooltip(ev, n));
+    g.addEventListener('mouseleave', hideTooltip);
+    g.addEventListener('click', () => openNodeDetail(n.id));
+
+    svg.appendChild(g);
+  }
+}
+
+function showNodeTooltip(ev, node) {
+  const tt = document.getElementById('topo-tooltip');
+  const statusColor = node.health === 'healthy' ? 'var(--green)' : 'var(--red)';
+  const m = lastMetrics[node.id];
+
+  let metricsHtml = '';
+  if (m && m.badge) {
+    metricsHtml += `<div style="margin-top:4px;color:var(--accent);font-weight:600">${escapeHtml(m.badge)}</div>`;
+  }
+  if (m && m.metrics) {
+    const entries = Object.entries(m.metrics).filter(([k]) => !k.startsWith('_')).slice(0, 5);
+    metricsHtml += entries.map(([k, v]) => {
+      const name = k.replace(/_/g, ' ').replace(/fivegs\s.*?\s/, '');
+      const val = typeof v === 'number' ? (Number.isInteger(v) ? v : v.toFixed(2)) : v;
+      return `<div class="tt-dim">${escapeHtml(name)}: ${val}</div>`;
+    }).join('');
+  }
+
+  tt.innerHTML = `
+    <div class="tt-label">${escapeHtml(node.label)}</div>
+    <div class="tt-dim">Container: ${escapeHtml(node.id)}</div>
+    <div>Status: <span style="color:${statusColor}">${escapeHtml(node.status)}</span></div>
+    ${node.ip ? `<div class="tt-dim">IP: ${escapeHtml(node.ip)}</div>` : ''}
+    <div class="tt-dim">Protocols: ${escapeHtml(node.protocols.join(', '))}</div>
+    <div class="tt-dim">Role: ${escapeHtml(node.role)}</div>
+    ${metricsHtml}
+    <div class="tt-dim" style="margin-top:4px;font-style:italic">Click for details</div>
+  `;
+  positionTooltip(ev, tt);
+}
+
+function showEdgeTooltip(ev, edge) {
+  const tt = document.getElementById('topo-tooltip');
+  const srcM = lastMetrics[edge.source];
+  const tgtM = lastMetrics[edge.target];
+
+  let metricsHtml = '';
+  if (srcM?.badge) metricsHtml += `<div class="tt-dim">${escapeHtml(edge.source)}: ${escapeHtml(srcM.badge)}</div>`;
+  if (tgtM?.badge) metricsHtml += `<div class="tt-dim">${escapeHtml(edge.target)}: ${escapeHtml(tgtM.badge)}</div>`;
+
+  tt.innerHTML = `
+    <div class="tt-label">${escapeHtml(edge.label)}</div>
+    <div class="tt-dim">Protocol: ${escapeHtml(edge.protocol)}</div>
+    ${edge.interface ? `<div class="tt-dim">Interface: ${escapeHtml(edge.interface)}</div>` : ''}
+    <div class="tt-dim">Plane: ${escapeHtml(edge.plane)}</div>
+    <div class="tt-dim">${escapeHtml(edge.source)} ↔ ${escapeHtml(edge.target)}</div>
+    <div>${edge.active ? '<span style="color:var(--green)">Active</span>' : '<span style="color:var(--red)">Inactive</span>'}</div>
+    ${metricsHtml}
+    <div class="tt-dim" style="margin-top:4px;font-style:italic">Click for details</div>
+  `;
+  positionTooltip(ev, tt);
+}
+
+function positionTooltip(ev, tt) {
+  const panel = document.getElementById('topology-body');
+  const rect = panel.getBoundingClientRect();
+  tt.style.display = 'block';
+  let x = ev.clientX - rect.left + 12;
+  let y = ev.clientY - rect.top + 12;
+  // Keep within bounds
+  if (x + 200 > rect.width) x = ev.clientX - rect.left - 200;
+  if (y + 100 > rect.height) y = ev.clientY - rect.top - 100;
+  tt.style.left = x + 'px';
+  tt.style.top = y + 'px';
+}
+
+function hideTooltip() {
+  const tt = document.getElementById('topo-tooltip');
+  if (tt) tt.style.display = 'none';
+}
+
+// Track which node is currently hovered for edge highlighting
+let hoveredNodeId = null;
+
+document.getElementById('topology-svg').addEventListener('mouseover', (ev) => {
+  const nodeG = ev.target.closest('.topo-node');
+  const edgeG = ev.target.closest('.topo-edge-group');
+
+  if (!nodeG && !edgeG) {
+    // Mouse is on empty SVG background — clear everything
+    if (hoveredNodeId) {
+      resetEdgeHighlights();
+      hoveredNodeId = null;
+    }
+    hideTooltip();
+    return;
+  }
+
+  // If hovering an edge group, just clear node highlights (tooltip handled by edge's own mouseenter)
+  if (edgeG && !nodeG) {
+    if (hoveredNodeId) {
+      resetEdgeHighlights();
+      hoveredNodeId = null;
+    }
+    return;
+  }
+
+  // Hovering a node — highlight connected edges
+  if (nodeG) {
+    const id = nodeG.getAttribute('data-node-id');
+    if (id === hoveredNodeId) return;
+    hoveredNodeId = id;
+    resetEdgeHighlights();
+    const svg = document.getElementById('topology-svg');
+    for (const edge of svg.querySelectorAll('.topo-edge-group[data-edge-src], .topo-edge-group[data-edge-tgt]')) {
+      if (edge.getAttribute('data-edge-src') === id || edge.getAttribute('data-edge-tgt') === id) {
+        edge.setAttribute('data-highlighted', '1');
+        const visual = edge.querySelector('.topo-edge-visual');
+        if (visual) {
+          visual.setAttribute('opacity', '1');
+          visual.style.strokeWidth = '3px';
+        }
+      }
+    }
+  }
+});
+
+// When the mouse leaves the SVG entirely, clear everything
+document.getElementById('topology-svg').addEventListener('mouseleave', () => {
+  hoveredNodeId = null;
+  resetEdgeHighlights();
+  hideTooltip();
+});
+
+function resetEdgeHighlights() {
+  const svg = document.getElementById('topology-svg');
+  for (const group of svg.querySelectorAll('.topo-edge-group[data-highlighted]')) {
+    group.removeAttribute('data-highlighted');
+    const isInactive = group.classList.contains('edge-inactive');
+    const plane = group.getAttribute('data-plane');
+    const style = PLANE_STYLES[plane] || PLANE_STYLES.control;
+    for (const visual of group.querySelectorAll('.topo-edge-visual')) {
+      // Restore original opacity: logical edges are 0.35, regular lines 0.6, bus elements 0.5
+      const isPath = visual.tagName === 'path';
+      const defaultOpacity = isInactive ? '0.15' : (isPath ? '0.35' : '0.6');
+      visual.setAttribute('opacity', defaultOpacity);
+      visual.style.strokeWidth = style.width + 'px';
+    }
+  }
+}
+
+// Click anywhere outside the topology panel to dismiss tooltip
+document.addEventListener('click', (ev) => {
+  if (!ev.target.closest('.topology-panel')) {
+    hideTooltip();
+  }
+});
+
+// --- Metrics state ---
+let lastMetrics = {};
+let detailLogWs = null;
+let detailNodeId = null;
+
+async function pollMetrics() {
+  try {
+    const res = await fetch(`${API_BASE}/metrics`);
+    lastMetrics = await res.json();
+    // Update detail panel if open
+    if (detailNodeId && lastMetrics[detailNodeId]) {
+      updateDetailMetrics(detailNodeId);
+    }
+  } catch (e) { /* silently ignore */ }
+}
+
+function formatMetricName(key) {
+  return key
+    .replace(/^fivegs_\w+_/, '')
+    .replace(/_/g, ' ')
+    .replace(/nbr$/, '')
+    .replace(/n3upf$/, '');
+}
+
+function formatMetricValue(v) {
+  if (typeof v !== 'number') return v;
+  if (Number.isInteger(v)) return v.toLocaleString();
+  if (Math.abs(v) >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1000) return (v / 1000).toFixed(1) + 'k';
+  return v.toFixed(2);
+}
+
+function renderSparkline(values, w, h) {
+  if (values.length < 2) return '';
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const points = values.map((v, i) => {
+    const x = (i / (values.length - 1)) * w;
+    const y = h - ((v - min) / range) * (h - 2) - 1;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+    <polyline points="${points}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function buildMetricsRows(metrics) {
+  const entries = Object.entries(metrics).filter(([k]) => !k.startsWith('_'));
+  if (!entries.length) return '<div style="font-size:12px;color:var(--text-dim);padding:4px 0">No metrics available</div>';
+  return entries.map(([k, v]) =>
+    `<div class="metric-row">
+      <span class="metric-name">${escapeHtml(formatMetricName(k))}</span>
+      <span class="metric-value">${formatMetricValue(v)}</span>
+      <span class="sparkline-container" id="spark-${CSS.escape(k)}"></span>
+    </div>`
+  ).join('');
+}
+
+function openNodeDetail(nodeId) {
+  const panel = document.getElementById('metrics-detail');
+  const node = lastTopology?.nodes?.find(n => n.id === nodeId);
+  if (!node) return;
+
+  detailNodeId = nodeId;
+  const m = lastMetrics[nodeId] || {};
+  const metrics = m.metrics || {};
+  const statusColor = node.health === 'healthy' ? 'var(--green)' : 'var(--red)';
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <h3>${escapeHtml(node.label)} <span style="font-size:12px;font-weight:400;color:var(--text-dim)">${escapeHtml(node.role)}</span></h3>
+      <button class="detail-close" onclick="closeDetail()">&times;</button>
+    </div>
+    <div class="detail-info">
+      <div class="info-row"><span>Status</span><span style="color:${statusColor}">${escapeHtml(node.status)}</span></div>
+      <div class="info-row"><span>IP</span><span>${escapeHtml(node.ip || 'N/A')}</span></div>
+      <div class="info-row"><span>Layer</span><span>${escapeHtml(node.layer)}</span></div>
+      <div class="info-row"><span>Protocols</span><span>${escapeHtml(node.protocols.join(', '))}</span></div>
+      ${m.source ? `<div class="info-row"><span>Metrics via</span><span>${escapeHtml(m.source)}</span></div>` : ''}
+    </div>
+    <div class="detail-section" id="detail-metrics-section">
+      <h4>Metrics${m.badge ? ` — ${escapeHtml(m.badge)}` : ''}</h4>
+      ${buildMetricsRows(metrics)}
+    </div>
+    <div class="detail-logs">
+      <div class="detail-logs-header">
+        <h4>Live Logs</h4>
+        <button class="btn-ai btn-ai-sm" id="detail-ai-btn" onclick="explainDetailLogs()">AI Explain</button>
+      </div>
+      <div class="detail-log-area" id="detail-log-area"></div>
+    </div>
+  `;
+
+  panel.classList.add('open');
+  loadSparklines(nodeId, metrics);
+  connectDetailLogs(nodeId);
+}
+
+function updateDetailMetrics(nodeId) {
+  const section = document.getElementById('detail-metrics-section');
+  if (!section) return;
+  const m = lastMetrics[nodeId] || {};
+  const metrics = m.metrics || {};
+  section.innerHTML = `
+    <h4>Metrics${m.badge ? ` — ${escapeHtml(m.badge)}` : ''}</h4>
+    ${buildMetricsRows(metrics)}
+  `;
+  loadSparklines(nodeId, metrics);
+}
+
+async function loadSparklines(nodeId, currentMetrics) {
+  try {
+    const res = await fetch(`${API_BASE}/metrics/history/${nodeId}`);
+    const history = await res.json();
+    for (const key of Object.keys(currentMetrics)) {
+      if (key.startsWith('_')) continue;
+      const el = document.getElementById(`spark-${CSS.escape(key)}`);
+      if (!el) continue;
+      const values = history.map(h => h[key]).filter(v => v !== undefined);
+      if (values.length >= 2) {
+        el.innerHTML = renderSparkline(values, 60, 20);
+      }
+    }
+  } catch (e) { /* silently ignore */ }
+}
+
+function connectDetailLogs(containerId) {
+  if (detailLogWs) {
+    detailLogWs.close();
+    detailLogWs = null;
+  }
+  const logArea = document.getElementById('detail-log-area');
+  if (!logArea) return;
+
+  const ws = new WebSocket(`${WS_BASE}/ws/logs/${containerId}`);
+  detailLogWs = ws;
+
+  ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'log') {
+      const div = document.createElement('div');
+      div.textContent = msg.line;
+      // Color-code log lines
+      const cls = classifyLine(msg.line);
+      if (cls) div.style.color = cls === 'error' ? 'var(--red)' :
+                                  cls === 'highlight' ? 'var(--green)' :
+                                  cls === 'sip-method' ? 'var(--cyan)' :
+                                  cls === 'warn' ? 'var(--orange)' : '';
+      logArea.appendChild(div);
+      while (logArea.children.length > 500) logArea.removeChild(logArea.firstChild);
+      logArea.scrollTop = logArea.scrollHeight;
+    }
+  };
+  ws.onclose = () => { detailLogWs = null; };
+}
+
+function openEdgeDetail(edge) {
+  const panel = document.getElementById('metrics-detail');
+  detailNodeId = null;
+  if (detailLogWs) { detailLogWs.close(); detailLogWs = null; }
+
+  const srcNode = lastTopology?.nodes?.find(n => n.id === edge.source);
+  const tgtNode = lastTopology?.nodes?.find(n => n.id === edge.target);
+  const srcM = lastMetrics[edge.source]?.metrics || {};
+  const tgtM = lastMetrics[edge.target]?.metrics || {};
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <h3>${escapeHtml(edge.label)}</h3>
+      <button class="detail-close" onclick="closeDetail()">&times;</button>
+    </div>
+    <div class="detail-info">
+      <div class="info-row"><span>Protocol</span><span>${escapeHtml(edge.protocol)}</span></div>
+      ${edge.interface ? `<div class="info-row"><span>Interface</span><span>${escapeHtml(edge.interface)}</span></div>` : ''}
+      <div class="info-row"><span>Plane</span><span>${escapeHtml(edge.plane)}</span></div>
+      <div class="info-row"><span>Status</span><span style="color:${edge.active ? 'var(--green)' : 'var(--red)'}">${edge.active ? 'Active' : 'Inactive'}</span></div>
+    </div>
+    <div class="detail-section">
+      <h4>${escapeHtml(srcNode?.label || edge.source)}${lastMetrics[edge.source]?.badge ? ` — ${escapeHtml(lastMetrics[edge.source].badge)}` : ''}</h4>
+      ${buildMetricsRows(srcM)}
+    </div>
+    <div class="detail-section">
+      <h4>${escapeHtml(tgtNode?.label || edge.target)}${lastMetrics[edge.target]?.badge ? ` — ${escapeHtml(lastMetrics[edge.target].badge)}` : ''}</h4>
+      ${buildMetricsRows(tgtM)}
+    </div>
+  `;
+
+  panel.classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('metrics-detail').classList.remove('open');
+  if (detailLogWs) { detailLogWs.close(); detailLogWs = null; }
+  detailNodeId = null;
+}
+
+function togglePlane(plane, btn) {
+  const body = document.getElementById('topology-body');
+  const className = `plane-hidden-${plane}`;
+
+  if (btn.classList.contains('active')) {
+    btn.classList.remove('active');
+    btn.classList.add('inactive');
+    body.classList.add(className);
+  } else {
+    btn.classList.remove('inactive');
+    btn.classList.add('active');
+    body.classList.remove(className);
+  }
+}
+
+function switchTab(tabName) {
+  // Toggle tab content visibility
+  for (const el of document.querySelectorAll('.tab-content')) {
+    el.classList.remove('active');
+  }
+  document.getElementById(`tab-${tabName}`).classList.add('active');
+
+  // Toggle tab button styling
+  for (const btn of document.querySelectorAll('.tab-btn')) {
+    btn.classList.remove('active');
+  }
+  document.querySelector(`.tab-btn[onclick*="${tabName}"]`).classList.add('active');
+
+  // Re-render topology when switching to it (SVG needs correct dimensions)
+  if (tabName === 'topology' && lastTopology) {
+    renderTopology(lastTopology);
+  }
+}
+
 // --- Init ---
 pollStatus();
+pollTopology();
+pollMetrics();
 statusInterval = setInterval(pollStatus, 5000);
+setInterval(pollTopology, 5000);
+setInterval(pollMetrics, 5000);
 
 // Allow Enter key to submit investigation
 document.getElementById('inv-question').addEventListener('keydown', (e) => {
