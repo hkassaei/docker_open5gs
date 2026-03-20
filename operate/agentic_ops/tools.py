@@ -358,6 +358,297 @@ async def search_logs(
 
 
 # ---------------------------------------------------------------------------
+# Tool 7: query_prometheus
+# ---------------------------------------------------------------------------
+
+async def query_prometheus(
+    deps: AgentDeps,
+    query: str,
+) -> str:
+    """Query Prometheus for 5G core NF metrics using PromQL.
+
+    **Call this EARLY in every investigation.** Prometheus metrics are the fastest
+    way to triage — a 3-second query replaces 30 minutes of log analysis.
+    Metrics tell you WHAT is broken. Logs tell you WHY. Start with WHAT.
+
+    The stack scrapes metrics from AMF, SMF, UPF, PCF every 5 seconds.
+
+    Args:
+        deps: Agent dependencies.
+        query: A PromQL query string. Common queries:
+
+            Data plane health (check FIRST for call/connectivity issues):
+              fivegs_ep_n3_gtp_indatapktn3upf — GTP incoming packets at UPF (0 = data plane dead)
+              fivegs_ep_n3_gtp_outdatapktn3upf — GTP outgoing packets at UPF
+
+            Session counts:
+              fivegs_upffunction_upf_sessionnbr — UPF active sessions
+              fivegs_smffunction_sm_sessionnbr — SMF active sessions
+
+            UE/gNB counts:
+              ran_ue — RAN-connected UEs at AMF
+              gnb — connected gNBs at AMF
+              amf_session — AMF session count
+
+            Registration stats:
+              fivegs_amffunction_rm_reginitreq — 5G NAS initial registration requests
+              fivegs_amffunction_rm_reginitsucc — 5G NAS initial registration successes
+              fivegs_amffunction_amf_authreq — authentication requests
+              fivegs_amffunction_amf_authfail — authentication failures
+
+            PDU session stats:
+              fivegs_smffunction_sm_pdusessioncreationreq — PDU session requests
+              fivegs_smffunction_sm_pdusessioncreationsucc — PDU session successes
+
+            PCF policy sessions:
+              fivegs_pcffunction_pa_sessionnbr — PCF policy sessions
+
+    Returns:
+        Query result as formatted text showing metric name, labels, and value.
+        Returns error message if Prometheus is unreachable.
+    """
+    prom_ip = deps.env.get("METRICS_IP", "172.22.0.36")
+    prom_url = f"http://{prom_ip}:9090"
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.get(
+                f"{prom_url}/api/v1/query",
+                params={"query": query},
+            )
+            if resp.status_code != 200:
+                return f"Prometheus returned HTTP {resp.status_code}: {resp.text[:200]}"
+
+            body = resp.json()
+            status = body.get("status", "")
+            if status != "success":
+                return f"Prometheus query failed: {body.get('error', 'unknown error')}"
+
+            results = body.get("data", {}).get("result", [])
+            if not results:
+                return f"No results for query '{query}'. The metric may not exist or have no data."
+
+            # Format results as readable text
+            lines = []
+            for r in results:
+                metric = r.get("metric", {})
+                value = r.get("value", [None, None])
+                metric_name = metric.get("__name__", query)
+                labels = {k: v for k, v in metric.items() if k != "__name__"}
+                label_str = ", ".join(f"{k}={v}" for k, v in labels.items())
+                val = value[1] if len(value) > 1 else "?"
+                if label_str:
+                    lines.append(f"{metric_name}{{{label_str}}} = {val}")
+                else:
+                    lines.append(f"{metric_name} = {val}")
+
+            return "\n".join(lines)
+
+    except httpx.ConnectError:
+        return f"Cannot connect to Prometheus at {prom_url}. Is the metrics container running?"
+    except httpx.TimeoutException:
+        return f"Prometheus query timed out at {prom_url}."
+    except Exception as e:
+        return f"Prometheus query error: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Tool 8: get_nf_metrics
+# ---------------------------------------------------------------------------
+
+async def get_nf_metrics(
+    deps: AgentDeps,
+) -> str:
+    """Get a full metrics snapshot across ALL network functions in one call.
+
+    Collects metrics from:
+      - Prometheus (AMF, SMF, UPF, PCF) — 5G core KPIs
+      - Kamailio kamcmd (P-CSCF, I-CSCF, S-CSCF) — IMS stats
+      - RTPEngine rtpengine-ctl — media relay stats
+      - PyHSS REST API — IMS subscriber count
+      - MongoDB — 5G subscriber count
+
+    This is the "radiograph" — a quick health overview of the entire stack.
+    Use this BEFORE diving into logs. If a metric is zero when it should be
+    nonzero (e.g., GTP packets = 0 but sessions > 0), that's an anomaly
+    worth investigating.
+
+    Returns:
+        JSON object with per-NF metrics, badges, and data sources.
+        Each NF entry has: {metrics: {key: value}, badge: "summary", source: "prometheus|kamcmd|api"}
+    """
+    import sys
+    gui_dir = str(deps.repo_root / "operate" / "gui")
+    if gui_dir not in sys.path:
+        sys.path.insert(0, gui_dir)
+
+    try:
+        from metrics import MetricsCollector
+        env = deps.env
+        collector = MetricsCollector(env)
+        collector._cache_ts = 0.0  # Force fresh collection
+        data = await asyncio.wait_for(collector.collect(), timeout=15)
+
+        if not data:
+            return "No metrics collected. Prometheus and/or containers may be down."
+
+        # Format as readable text
+        lines = []
+        for nf, info in sorted(data.items()):
+            badge = info.get("badge", "")
+            source = info.get("source", "?")
+            metrics = info.get("metrics", {})
+            badge_str = f" [{badge}]" if badge else ""
+            lines.append(f"\n{nf.upper()}{badge_str} (via {source}):")
+            for k, v in sorted(metrics.items()):
+                if k.startswith("_"):
+                    continue
+                lines.append(f"  {k} = {v}")
+
+        return "\n".join(lines)
+
+    except asyncio.TimeoutError:
+        return "Metrics collection timed out (15s). Some NFs may be unreachable."
+    except ImportError as e:
+        return f"Cannot import MetricsCollector: {e}"
+    except Exception as e:
+        return f"Metrics collection error: {e}"
+
+
+# ---------------------------------------------------------------------------
+# Tool 9: run_kamcmd (renumbered from 7)
+# ---------------------------------------------------------------------------
+
+async def run_kamcmd(
+    deps: AgentDeps,
+    container: str,
+    command: str,
+) -> str:
+    """Run a kamcmd command inside a Kamailio container (pcscf, icscf, scscf).
+
+    This provides access to Kamailio's internal runtime state that is NOT
+    visible in logs or config files: Diameter peer status, usrloc registered
+    contacts, transaction stats, shared memory usage, dialog state, etc.
+
+    Args:
+        deps: Agent dependencies.
+        container: Kamailio container name ('pcscf', 'icscf', or 'scscf').
+        command: kamcmd command string. Common commands:
+            - cdp.list_peers — Diameter peer connections and state
+            - ulscscf.showimpu <sip:imsi@domain> — S-CSCF registration lookup
+            - stats.get_statistics all — all Kamailio stats
+            - tm.stats — SIP transaction statistics
+            - dlg.list — active SIP dialogs
+
+    Returns:
+        Command output as string, or error message.
+    """
+    valid_containers = {"pcscf", "icscf", "scscf"}
+    if container not in valid_containers:
+        return f"Container must be one of {valid_containers}, got '{container}'"
+
+    if container not in deps.all_containers:
+        return f"Container '{container}' not in known containers list"
+
+    cmd = f"docker exec {container} kamcmd {command}"
+    rc, output = await _shell(cmd)
+
+    if rc != 0 and "not found" in output:
+        return f"kamcmd command '{command}' not found. Try: cdp.list_peers, stats.get_statistics all, tm.stats"
+
+    return _truncate(output.strip()) or "(no output)"
+
+
+# ---------------------------------------------------------------------------
+# Tool 8: read_running_config
+# ---------------------------------------------------------------------------
+
+async def read_running_config(
+    deps: AgentDeps,
+    container: str,
+    grep: str | None = None,
+) -> str:
+    """Read the ACTUAL configuration from a running container (not the repo copy).
+
+    This reads the config that the process is currently using, which may differ
+    from the repo version if the container was restarted from a volume mount
+    or if runtime changes were applied.
+
+    Use this when you need to verify what config a container is ACTUALLY running
+    with, especially for settings like udp_mtu_try_proto, auth algorithms, etc.
+
+    Args:
+        deps: Agent dependencies.
+        container: Container name.
+        grep: Optional pattern to filter config lines (case-insensitive).
+
+    Returns:
+        Config content (or filtered lines), or error message.
+    """
+    # Map containers to their config file paths inside the container
+    config_paths = {
+        "pcscf": "/etc/kamailio_pcscf/kamailio_pcscf.cfg",
+        "icscf": "/etc/kamailio_icscf/kamailio_icscf.cfg",
+        "scscf": "/etc/kamailio_scscf/kamailio_scscf.cfg",
+        "amf": "/open5gs/install/etc/open5gs/amf.yaml",
+        "smf": "/open5gs/install/etc/open5gs/smf.yaml",
+        "upf": "/open5gs/install/etc/open5gs/upf.yaml",
+    }
+
+    config_path = config_paths.get(container)
+    if not config_path:
+        return f"No known config path for container '{container}'. Known: {', '.join(sorted(config_paths.keys()))}"
+
+    if grep:
+        cmd = f"docker exec {container} grep -in -- {_shell_quote(grep)} {config_path}"
+    else:
+        cmd = f"docker exec {container} cat {config_path}"
+
+    rc, output = await _shell(cmd)
+    if rc != 0:
+        return f"Failed to read config from {container}:{config_path} — {output.strip()}"
+
+    return _truncate(output.strip()) or "(empty config or no matches)"
+
+
+# ---------------------------------------------------------------------------
+# Tool 9: check_process_listeners
+# ---------------------------------------------------------------------------
+
+async def check_process_listeners(
+    deps: AgentDeps,
+    container: str,
+) -> str:
+    """Check what network ports and protocols a container's processes are listening on.
+
+    Shows UDP and TCP listeners. Essential for diagnosing transport mismatches
+    — e.g., when a SIP proxy sends via TCP but the UE only listens on UDP.
+
+    Args:
+        deps: Agent dependencies.
+        container: Container name.
+
+    Returns:
+        Output of ss -tulnp showing all listeners, or error message.
+    """
+    if container not in deps.all_containers:
+        return f"Unknown container '{container}'. Known: {', '.join(deps.all_containers)}"
+
+    cmd = f"docker exec {container} ss -tulnp"
+    rc, output = await _shell(cmd)
+
+    if rc != 0:
+        # ss might not be available, try netstat
+        cmd = f"docker exec {container} netstat -tulnp"
+        rc, output = await _shell(cmd)
+
+    if rc != 0:
+        return f"Neither ss nor netstat available in {container}. Output: {output.strip()}"
+
+    return output.strip() or "(no listeners found)"
+
+
+# ---------------------------------------------------------------------------
 # Utility
 # ---------------------------------------------------------------------------
 

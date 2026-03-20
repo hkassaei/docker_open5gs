@@ -122,6 +122,93 @@ async def _tool_search_logs(
     return await t.search_logs(ctx.deps, pattern, containers, since)
 
 
+async def _tool_query_prometheus(
+    ctx: RunContext[AgentDeps],
+    query: str,
+) -> str:
+    """Query Prometheus for 5G core NF metrics using PromQL.
+
+    Call this EARLY — metrics are the fastest way to triage. A 3-second query
+    replaces 30 minutes of log analysis. Common queries:
+      - fivegs_ep_n3_gtp_indatapktn3upf (GTP data plane packets — 0 means dead)
+      - ran_ue (connected UEs), gnb (connected gNBs)
+      - fivegs_smffunction_sm_sessionnbr (active PDU sessions)
+      - fivegs_amffunction_amf_authfail (authentication failures)
+
+    Args:
+        query: PromQL query string (e.g. 'ran_ue', 'fivegs_ep_n3_gtp_indatapktn3upf').
+    """
+    return await t.query_prometheus(ctx.deps, query)
+
+
+async def _tool_get_nf_metrics(
+    ctx: RunContext[AgentDeps],
+) -> str:
+    """Get a full metrics snapshot across ALL network functions in one call.
+
+    Collects from Prometheus (5G core), kamcmd (IMS Kamailio), RTPEngine,
+    PyHSS, and MongoDB. This is the 'radiograph' — a quick health overview
+    of the entire stack. Use BEFORE diving into logs.
+
+    Returns per-NF metrics with badges and data sources.
+    """
+    return await t.get_nf_metrics(ctx.deps)
+
+
+async def _tool_run_kamcmd(
+    ctx: RunContext[AgentDeps],
+    container: str,
+    command: str,
+) -> str:
+    """Run a kamcmd command inside a Kamailio container to inspect runtime state.
+
+    Provides access to internal state not visible in logs: Diameter peer
+    connections, registered contacts, transaction stats, dialog state.
+
+    Args:
+        container: Kamailio container ('pcscf', 'icscf', or 'scscf').
+        command: kamcmd command. Examples:
+            - cdp.list_peers — Diameter peer connections and state
+            - ulscscf.showimpu sip:imsi@domain — S-CSCF registration lookup
+            - stats.get_statistics all — all stats
+            - tm.stats — SIP transaction statistics
+    """
+    return await t.run_kamcmd(ctx.deps, container, command)
+
+
+async def _tool_read_running_config(
+    ctx: RunContext[AgentDeps],
+    container: str,
+    grep: str | None = None,
+) -> str:
+    """Read the ACTUAL config from a running container (not the repo copy).
+
+    The running config may differ from the repo if the container was restarted
+    from a volume mount. Use this to verify critical settings like
+    udp_mtu_try_proto, auth algorithms, listen addresses, etc.
+
+    Args:
+        container: Container name (pcscf, icscf, scscf, amf, smf, upf).
+        grep: Optional pattern to filter config lines (case-insensitive).
+    """
+    return await t.read_running_config(ctx.deps, container, grep)
+
+
+async def _tool_check_process_listeners(
+    ctx: RunContext[AgentDeps],
+    container: str,
+) -> str:
+    """Check what ports and protocols a container's processes are listening on.
+
+    Shows TCP and UDP listeners. Essential for diagnosing transport mismatches
+    — e.g., when P-CSCF sends SIP via TCP but the UE only listens on UDP.
+
+    Args:
+        container: Container name (e.g. 'e2e_ue1', 'pcscf', 'scscf').
+    """
+    return await t.check_process_listeners(ctx.deps, container)
+
+
 # ---------------------------------------------------------------------------
 # Agent factory
 # ---------------------------------------------------------------------------
@@ -137,7 +224,7 @@ def create_agent(model: str | None = None) -> Agent[AgentDeps, Diagnosis]:
         A Pydantic AI Agent configured with telecom tools and knowledge.
     """
     model_id = model or os.environ.get(
-        "AGENT_MODEL", "anthropic:claude-sonnet-4-20250514"
+        "AGENT_MODEL", "google-vertex:gemini-2.5-pro"
     )
 
     agent: Agent[AgentDeps, Diagnosis] = Agent(
@@ -152,6 +239,11 @@ def create_agent(model: str | None = None) -> Agent[AgentDeps, Diagnosis]:
             Tool(_tool_query_subscriber, takes_ctx=True),
             Tool(_tool_read_env_config, takes_ctx=True),
             Tool(_tool_search_logs, takes_ctx=True),
+            Tool(_tool_query_prometheus, takes_ctx=True),
+            Tool(_tool_get_nf_metrics, takes_ctx=True),
+            Tool(_tool_run_kamcmd, takes_ctx=True),
+            Tool(_tool_read_running_config, takes_ctx=True),
+            Tool(_tool_check_process_listeners, takes_ctx=True),
         ],
         retries=2,
     )

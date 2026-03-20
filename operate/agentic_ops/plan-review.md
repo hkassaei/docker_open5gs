@@ -612,21 +612,23 @@ async def search_logs(
 - `search_logs(pattern="408", since="10m")` — find recent timeout errors anywhere in the stack
 - `search_logs(pattern="JyjjCuCEILH")` — trace a specific SIP Call-ID end-to-end
 
-### Future Tools (not in v1)
+### Future Tools (status as of v1.5)
 
-These tools are designed but deferred:
-
-| Tool | Purpose | Why deferred | Target |
+| Tool | Purpose | Status | Target |
 |---|---|---|---|
-| `get_sip_dialog(call_id)` | Extract a complete SIP transaction (INVITE→200→ACK) by Call-ID from IMS container logs | Requires SIP message parsing from Kamailio logs; `search_logs` with Call-ID covers most cases in v1 | v1.1 |
-| `get_correlated_timeline(since)` | Merge logs from all containers, normalize timestamps to ISO8601, sort chronologically | Valuable for cross-container correlation; LLM can parse different timestamp formats adequately for v1 | v1.1 |
-| `record_fact(fact, confidence)` | Save a verified finding to short-term memory so the agent doesn't re-read raw data | Within a single investigation (5-10 tool calls), LLM's conversation context is sufficient; becomes critical with sub-agents or 20+ turn investigations | v2 |
-| `recall_similar_cases(symptoms)` | Search persistent memory of past diagnoses for similar patterns | Requires persistent storage (SQLite/JSON); premature for v1 | v2 |
-| `query_prometheus(query)` | Execute PromQL queries for metrics | Not needed for log-based diagnosis | v2 |
-| `restart_container(name)` | Restart a container | Remediation is out of scope for v1 | v2 |
-| `exec_in_container(name, cmd)` | Run arbitrary command in container | Security concerns, needs careful design | v2 |
-| `read_log_file(component)` | Read Open5GS log files from `./log/` | `read_container_logs` covers most cases | v1.1 |
-| `diff_config(component)` | Compare on-disk vs in-container config | Delight feature, not core diagnosis | v1.1 |
+| `query_prometheus(query)` | Execute PromQL queries for metrics | **DONE in v1.5** — Tool 7 | ✅ |
+| `get_nf_metrics()` | Full stack metrics snapshot | **DONE in v1.5** — Tool 8 | ✅ |
+| `run_kamcmd(container, command)` | Kamailio runtime state (Diameter peers, usrloc, stats) | **DONE in v1.5** — Tool 9 | ✅ |
+| `read_running_config(container, grep)` | Read ACTUAL config from running container | **DONE in v1.5** — Tool 10 | ✅ |
+| `check_process_listeners(container)` | TCP/UDP listener state | **DONE in v1.5** — Tool 11 | ✅ |
+| `get_sip_dialog(call_id)` | Extract complete SIP transaction by Call-ID | Deferred — `search_logs` with Call-ID covers most cases | v2 |
+| `get_correlated_timeline(since)` | Merge logs, normalize timestamps, sort | Deferred — becomes critical for sub-agent coordination in v2 | v2 |
+| `record_fact(fact, confidence)` | Save finding to short-term memory | Deferred — critical for v2 multi-agent (specialists share findings) | v2 |
+| `recall_similar_cases(symptoms)` | Search persistent memory of past diagnoses | Deferred — requires persistent storage | v2 |
+| `restart_container(name)` | Restart a container | Deferred — remediation out of scope | v2+ |
+| `exec_in_container(name, cmd)` | Run arbitrary command in container | Deferred — security concerns | v2+ |
+| `read_log_file(component)` | Read Open5GS log files from `./log/` | Deferred — `read_container_logs` sufficient | v2 |
+| `diff_config(component)` | Compare repo config vs running container config | Deferred — `read_running_config` partially addresses this | v2 |
 
 **Note on native DB clients:** The v1 `query_subscriber` tool uses `docker exec mongosh` and PyHSS REST API. A future improvement is to use native Python clients (`pymongo`, `mysql-connector-python`) for cleaner structured output and reduced token cost. Deferred because it adds dependencies and requires direct network access to the databases, whereas `docker exec` works out of the box.
 
@@ -696,75 +698,42 @@ class Diagnosis(BaseModel):
 
 ---
 
-## Sub-Agent Decomposition (Future)
+## Sub-Agent Decomposition
 
-v1 uses a single agent. The architecture is designed so that when investigations become more complex, we can decompose into specialized sub-agents.
+**Status: v1 → v1.5 confirmed this is necessary. v2 plan now specified.**
 
-### Future Multi-Agent Architecture
+v1 used a single agent. v1.5 added better tools and methodology to the single agent. The UE1→UE2 call failure (2026-03-19) proved that the single-agent architecture has fundamental limits: the agent abandoned its methodology, followed the most interesting error (I-CSCF 500) instead of checking the destination (UE2), and scored 10%.
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  Coordinator Agent                                                   │
-│  "Receive user question, dispatch to specialists, synthesize"        │
-│                                                                      │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌────────────┐ │
-│  │ IMS Agent    │  │ Core Agent  │  │ RAN Agent   │  │ Data Agent │ │
-│  │             │  │             │  │             │  │            │ │
-│  │ Tools:      │  │ Tools:      │  │ Tools:      │  │ Tools:     │ │
-│  │ - pcscf logs│  │ - amf logs  │  │ - gnb logs  │  │ - mongodb  │ │
-│  │ - scscf logs│  │ - smf logs  │  │ - ue logs   │  │ - pyhss    │ │
-│  │ - icscf logs│  │ - upf logs  │  │ - ue config │  │ - metrics  │ │
-│  │ - pyhss logs│  │ - pcf logs  │  │             │  │            │ │
-│  │ - ims config│  │ - core cfg  │  │             │  │            │ │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └─────┬──────┘ │
-│         │                │                │                │        │
-│         └────────────────┴────────────────┴────────────────┘        │
-│                                    │                                 │
-│                          Coordinator merges                          │
-│                          findings into Diagnosis                     │
-└─────────────────────────────────────────────────────────────────────┘
-```
+**The v2 multi-agent architecture is now fully specified** in the "v2: Multi-Agent Decomposition" section below. It uses the same ADK framework (SequentialAgent + ParallelAgent) already proven in the chaos monkey platform.
 
-### How v1 Enables This
+### How v1.5 Enables v2
 
-The v1 architecture makes this decomposition straightforward because:
+The v1.5 architecture makes this decomposition straightforward because:
 
-1. **Tools are standalone functions** in `tools.py` — not embedded in the agent. Any agent (coordinator or specialist) can import and use any subset of tools.
+1. **Tools are standalone functions** in `tools.py` — not embedded in the agent. Any agent (triage, tracer, or specialist) can import and use any subset of tools.
 
 2. **The `AgentDeps` dependency injection** provides shared state (repo path, env vars) that any sub-agent can use.
 
-3. **Pydantic AI's delegation pattern** lets a coordinator agent hand off to specialist agents:
+3. **ADK's SequentialAgent + ParallelAgent** (already proven in `agentic_chaos/orchestrator.py`) can wire the phases: triage → trace → parallel specialists → synthesis. The shared `session.state` pattern passes structured data between phases.
+
+4. **Each specialist agent can use a different model** — use Flash for fast triage, Pro for complex IMS analysis:
 
 ```python
-# Future: coordinator delegates to IMS specialist
-ims_agent = Agent(
-    model=os.environ["AGENT_MODEL"],
-    system_prompt="You specialize in IMS/SIP troubleshooting...",
-    tools=[read_container_logs, read_config],  # subset of tools
-    result_type=SubDiagnosis,
-)
-
-@coordinator_agent.tool
-async def investigate_ims(ctx: RunContext[AgentDeps], question: str) -> str:
-    """Delegate IMS investigation to the IMS specialist agent."""
-    result = await ims_agent.run(question, deps=ctx.deps)
-    return result.data.model_dump_json()
+triage_agent = LlmAgent(model="gemini-2.5-flash", ...)       # Fast, cheap
+ims_specialist = LlmAgent(model="gemini-2.5-pro", ...)       # Deep reasoning
+transport_specialist = LlmAgent(model="gemini-2.5-flash", ...)  # Simple checks
 ```
 
-4. **Each specialist agent can use a different model** — use Sonnet for fast log scanning, Opus for complex reasoning:
+5. **Tool budgets are enforceable** — each specialist agent gets a `max_tool_calls` parameter, preventing the rabbit-hole problem that sank v1.
 
-```python
-ims_agent = Agent(model=os.environ.get("IMS_AGENT_MODEL", "anthropic:claude-sonnet-4-20250514"), ...)
-coordinator = Agent(model=os.environ.get("COORDINATOR_MODEL", "anthropic:claude-opus-4-20250514"), ...)
-```
+### Sub-Agent Design Principles
 
-### Sub-Agent Design Principles (for when we get there)
-
-1. **Specialists are narrowly scoped** — each agent knows one domain deeply
-2. **Coordinator is protocol-aware** — knows which specialist to dispatch based on symptoms
-3. **Specialists run in parallel** when investigating orthogonal domains (IMS + Core simultaneously)
-4. **Each specialist returns a `SubDiagnosis`** — structured findings that the coordinator synthesizes
-5. **Tools are shared, prompts are specialized** — same `read_container_logs` function, different system prompts
+1. **Phase 0 (Triage) runs ALWAYS** — metrics first, no exceptions. This is architectural, not advisory.
+2. **Phase 1 (End-to-End Trace) checks the destination** — the single most important lesson from the UE1→UE2 failure. Dedicated agent, not a system prompt suggestion.
+3. **Specialists are narrowly scoped** — each knows one domain, carries only its tools, has a bounded context
+4. **Specialists run in parallel** when investigating orthogonal domains
+5. **Orchestrator gates phases** — Phase 0 results determine whether Phase 1 runs, Phase 1 results determine which specialists to dispatch
+6. **Each specialist must report what it checked AND what would disprove its finding** — hypothesis disconfirmation is structural, not optional
 
 ---
 
@@ -911,14 +880,254 @@ A `LogParser` utility that normalizes timestamps across different container log 
 ### Native Database Clients
 Replace `docker exec mongosh`/PyHSS REST scraping with native Python clients (`pymongo`, `mysql-connector-python`) for cleaner structured JSON output and reduced token cost. Adds dependencies and requires direct network access to databases.
 
-### Sub-Agent Decomposition
-Coordinator + IMS specialist + Core specialist + RAN specialist. Each specialist uses the optimal model for its domain.
+### Sub-Agent Decomposition — NOW PLANNED FOR v2
+~~Coordinator + IMS specialist + Core specialist + RAN specialist.~~ **Updated:** Gated multi-phase architecture with Triage → End-to-End Trace → Specialists → Synthesis. Includes a new Transport Specialist (learned from UE1→UE2 failure). See "v2: Multi-Agent Decomposition" section for the full design.
 
 ### Multi-Stack Support
 Extend from 5G SA + IMS to also support 4G VoLTE, VoWiFi, and hybrid stacks. Different system prompts per stack type.
 
 ### pcap Integration
 Read packet captures (tcpdump/Wireshark) for wire-level protocol analysis when logs aren't sufficient.
+
+---
+
+## v1.5: Post-Incident Improvements (2026-03-19)
+
+### The Triggering Incident: UE1→UE2 Call Failure
+
+Full postmortem: [`operate/docs/RCAs/postmortem_ue1_calls_ue2_failure.md`](../docs/RCAs/postmortem_ue1_calls_ue2_failure.md)
+
+The v1 agent was deployed on Gemini 2.5 Pro and asked to diagnose why UE1 could not call UE2 (both were registered successfully). The agent scored **10%** — it blamed the I-CSCF's Diameter configuration (wrong) when the actual root cause was a P-CSCF transport mismatch (`udp_mtu_try_proto=TCP` causing SIP INVITEs to be sent via TCP to pjsua UEs that only listen on UDP).
+
+### What Went Wrong
+
+The agent had three fundamental failures:
+
+1. **Did not trace the call to the destination.** The agent checked UE1 (caller) and the intermediate IMS nodes (P-CSCF, I-CSCF, S-CSCF) but never checked UE2 (callee). If it had searched for the Call-ID in UE2's logs and found nothing, it would have immediately known the INVITE never reached UE2 — shifting the investigation from "why can't the I-CSCF talk to HSS?" to "why isn't the INVITE reaching UE2?"
+
+2. **Had no access to metrics.** The agent could not query Prometheus for GTP packet counts, session counts, or any NF KPIs. The entire metrics store — which the `rca_reflections.md` document identifies as the "radiograph" that should precede all log analysis — was invisible to the agent.
+
+3. **Had no access to runtime state.** The agent could not check Kamailio Diameter peer connections (`kamcmd cdp.list_peers`), usrloc registered contacts, or the ACTUAL running config (as opposed to the repo copy). It formed a hypothesis about missing Diameter config and had no tool to verify or disprove it.
+
+### Tools Added in v1.5
+
+| # | Tool | Purpose | Gap it fills |
+|---|---|---|---|
+| 7 | `query_prometheus(query)` | Execute PromQL queries against Prometheus | Agent can now check GTP packet counts, session counts, auth failures — the "radiograph" triage |
+| 8 | `get_nf_metrics()` | Full metrics snapshot: Prometheus + kamcmd + PyHSS + MongoDB | One-call health overview of the entire stack |
+| 9 | `run_kamcmd(container, command)` | Execute kamcmd inside Kamailio containers | Diameter peer state, usrloc registrations, transaction stats |
+| 10 | `read_running_config(container, grep)` | Read the ACTUAL config from a running container | Catches cases where the running config differs from the repo (volume mount overwrites) |
+| 11 | `check_process_listeners(container)` | Show TCP/UDP listeners via `ss -tulnp` | Diagnose transport mismatches (TCP vs UDP) |
+
+### System Prompt Overhaul in v1.5
+
+The investigation methodology was rewritten based on the failure:
+
+1. **Step 1 now includes metrics** — `get_nf_metrics` is called alongside `read_env_config` and `get_network_status`. The agent is told: "metrics are the radiograph — read them before touching any log files."
+
+2. **Step 2 now mandates checking BOTH ends** — for call failures, the agent MUST check the callee's logs for the Call-ID before investigating intermediate nodes. The rule is explicit: "If the callee has no record of the Call-ID, the request never reached the callee. Do NOT investigate intermediate nodes until you have confirmed whether the request reached its destination."
+
+3. **Step 3 now requires Call-ID end-to-end tracing** — search for the Call-ID across ALL containers, build a timeline of which containers saw it and which did NOT.
+
+4. **Step 7 (new) mandates hypothesis disconfirmation** — before reporting a root cause, the agent must run at least one check that could disprove its conclusion.
+
+5. **New failure patterns added** — "SIP INVITE not delivered" (transport mismatch) and "Cascading 500 errors" (timeout propagation) with exact diagnostic steps.
+
+6. **Transport layer knowledge added** — explanation of `udp_mtu_try_proto`, why TCP delivery to pjsua fails silently, and what to check when SIP messages "vanish" between P-CSCF and UE.
+
+### Current State (v1.5)
+
+```
+v1 (6 tools):                     v1.5 (11 tools):
+  read_container_logs                read_container_logs
+  read_config                        read_config
+  get_network_status                 get_network_status
+  query_subscriber                   query_subscriber
+  read_env_config                    read_env_config
+  search_logs                        search_logs
+                                   + query_prometheus         ← metrics triage
+                                   + get_nf_metrics           ← full stack health
+                                   + run_kamcmd               ← Kamailio runtime state
+                                   + read_running_config      ← actual running config
+                                   + check_process_listeners  ← transport layer
+```
+
+---
+
+## v2: Multi-Agent Decomposition (Next Phase)
+
+### Why v1.5 Is Not Enough
+
+v1.5 added the right tools and methodology, but the single-agent architecture has fundamental limits that surfaced during the UE1→UE2 investigation:
+
+1. **Context window saturation.** The system prompt is now ~3K tokens of methodology + architecture + failure patterns. Each tool call returns 200-500 lines. After 8 tool calls, the agent has consumed ~50K tokens of context. The investigation methodology and failure patterns get pushed out of the attention window by raw log data.
+
+2. **No enforced investigation discipline.** Despite the system prompt saying "check both ends" and "metrics first", the LLM followed the "most interesting" thread (I-CSCF 500 error) and abandoned the methodology. A single agent can be told to follow a process but cannot be forced to.
+
+3. **Can't parallelize.** Checking UE1 logs, UE2 logs, metrics, and Diameter peer state are independent operations. A single agent runs them sequentially, burning tokens on each round-trip.
+
+4. **Can't prune.** There's no checkpoint where the system stops and asks "given what the metrics agent found, should we even run the IMS log agent?" The single agent makes this decision implicitly (often wrong) rather than explicitly.
+
+These are the exact problems documented in `agent_design_reflections.md` after the first RCA. v1.5 mitigated them with better tools and prompts, but the architectural solution is multi-agent.
+
+### Gated Multi-Phase Architecture
+
+Based on the agent_design_reflections.md design AND the lessons from the UE1→UE2 failure:
+
+```
+                    ┌─────────────────────────┐
+                    │     ORCHESTRATOR         │
+                    │                          │
+                    │  - Investigation state   │
+                    │  - Decision tree         │
+                    │  - Hypothesis budget     │
+                    │  - Pruning logic         │
+                    │  - Final RCA synthesis   │
+                    └────────┬────────────────┘
+                             │
+              ┌──────────────┼──────────────────┐
+              │              │                   │
+         Phase 0        Phase 1             Phase 2
+         (ALWAYS)       (CONDITIONAL)       (CONDITIONAL)
+              │              │                   │
+    ┌─────────┴───┐    ┌─────┴──────┐    ┌──────┴───────┐
+    │  TRIAGE     │    │ END-TO-END │    │ SPECIALIST   │
+    │  AGENT      │    │ TRACE      │    │ AGENTS       │
+    │             │    │ AGENT      │    │ (parallel)   │
+    │ Tools:      │    │            │    │              │
+    │ - metrics   │    │ Tools:     │    │ ┌──────────┐ │
+    │ - prom query│    │ - search   │    │ │P-CSCF    │ │
+    │ - net status│    │   logs     │    │ │specialist│ │
+    │ - env config│    │ - UE logs  │    │ ├──────────┤ │
+    │             │    │            │    │ │S-CSCF    │ │
+    │ Returns:    │    │ Returns:   │    │ │specialist│ │
+    │ structured  │    │ which nodes│    │ ├──────────┤ │
+    │ health      │    │ saw the    │    │ │Core NF   │ │
+    │ report +    │    │ request,   │    │ │specialist│ │
+    │ anomalies   │    │ which did  │    │ ├──────────┤ │
+    │             │    │ NOT        │    │ │Transport │ │
+    │             │    │            │    │ │specialist│ │
+    │             │    │            │    │ └──────────┘ │
+    └─────────────┘    └────────────┘    └──────────────┘
+```
+
+### Phase 0: Triage Agent (ALWAYS runs, ~3 seconds)
+
+**Purpose:** Quick health assessment. Determines the investigation path.
+
+**Tools:** `get_nf_metrics`, `query_prometheus`, `get_network_status`, `read_env_config`
+
+**Output:** Structured triage report:
+```python
+class TriageReport(BaseModel):
+    stack_phase: str           # "ready" / "partial" / "down"
+    data_plane_status: str     # "healthy" / "degraded" / "dead"
+    control_plane_status: str  # "healthy" / "degraded" / "down"
+    ims_status: str            # "healthy" / "degraded" / "down"
+    anomalies: list[str]       # ["GTP packets = 0", "P-CSCF 0 registered contacts"]
+    recommended_phase: str     # "end_to_end_trace" / "data_plane_probe" / "ims_analysis"
+```
+
+**Decision logic:** The orchestrator reads the triage report and decides:
+- If `data_plane_status == "dead"` → skip IMS analysis, run data plane probes
+- If `ims_status == "down"` → run IMS specialist agents
+- If everything looks healthy → run end-to-end trace (the problem is subtle)
+
+**Why this is Phase 0:** Metrics triage takes 3 seconds and determines the entire investigation path. This is the "radiograph before biopsy" principle from `rca_reflections.md`. In the UE1→UE2 failure, Phase 0 would have shown: GTP packets flowing (data plane OK), sessions active (control plane OK), but P-CSCF registered contacts = 0 (IMS anomaly) → route to IMS specialists.
+
+### Phase 1: End-to-End Trace Agent (CONDITIONAL)
+
+**Purpose:** Trace the specific request (Call-ID, REGISTER, etc.) across ALL containers to find where it stopped.
+
+**Tools:** `search_logs`, `read_container_logs` (for both UEs)
+
+**Output:**
+```python
+class TraceResult(BaseModel):
+    call_id: str
+    nodes_that_saw_it: list[str]     # ["e2e_ue1", "pcscf", "scscf", "icscf"]
+    nodes_that_should_have: list[str] # ["e2e_ue2"]
+    failure_point: str                # "between pcscf and e2e_ue2"
+    error_messages: dict[str, str]    # {"icscf": "500 Server error on LIR..."}
+```
+
+**Why this is critical:** In the UE1→UE2 failure, this agent would have found that UE2 never saw the Call-ID. That single finding would have redirected the entire investigation from "I-CSCF Diameter" to "P-CSCF → UE2 delivery."
+
+**This is the lesson the v1 agent missed:** always check the destination. The End-to-End Trace Agent exists specifically to enforce this discipline — it's not optional, it's not a recommendation in a system prompt. It's a dedicated agent whose sole purpose is to answer "did the request reach its destination?"
+
+### Phase 2: Specialist Agents (CONDITIONAL, run in parallel)
+
+Based on Phase 0 triage and Phase 1 trace, the orchestrator dispatches relevant specialists:
+
+**IMS Specialist:**
+- Tools: `read_container_logs` (pcscf, icscf, scscf, pyhss), `run_kamcmd`, `read_running_config`
+- Knowledge: SIP call flows, Diameter Cx, Kamailio config, IMS registration
+- Budget: 5 tool calls max
+
+**Core NF Specialist:**
+- Tools: `read_container_logs` (amf, smf, upf), `query_prometheus`, `read_running_config`
+- Knowledge: 5G NAS, PFCP, GTP-U, PDU sessions
+- Budget: 5 tool calls max
+
+**Transport Specialist** (NEW — learned from UE1→UE2 failure):
+- Tools: `check_process_listeners`, `read_running_config`, `run_kamcmd`
+- Knowledge: UDP vs TCP, `udp_mtu_try_proto`, SIP transport, listener state
+- Budget: 3 tool calls max
+- **When dispatched:** When Phase 1 shows a request was sent to a destination but never received
+
+**Data Specialist:**
+- Tools: `query_subscriber`, `query_prometheus`
+- Knowledge: MongoDB schema, PyHSS API, subscriber provisioning
+- Budget: 3 tool calls max
+
+### Key Design Changes from v1 → v2
+
+| Aspect | v1/v1.5 (Single Agent) | v2 (Multi-Agent) |
+|---|---|---|
+| Metrics check | System prompt says "check metrics first" — agent may or may not comply | Phase 0 Triage Agent runs ALWAYS before any other analysis |
+| Destination check | System prompt says "check both ends" — agent skipped it | Phase 1 End-to-End Trace Agent exists specifically for this |
+| Tool budget | Unlimited — agent can burn 15+ tool calls on wrong thread | Each specialist gets max N tool calls, enforced by orchestrator |
+| Parallelism | Sequential — each tool call waits for LLM round-trip | Specialists run in parallel within each phase |
+| Context management | All tool output in one context window → saturation | Each specialist has its own context, returns structured summary to orchestrator |
+| Investigation discipline | Recommendations in system prompt (advisory) | Enforced by architecture (mandatory phases, gated progression) |
+| Hypothesis disconfirmation | Step 7 in system prompt (may be skipped) | Orchestrator requires each specialist to report what it checked AND what would disprove its finding |
+
+### Framework for v2
+
+The chaos monkey platform already demonstrated that ADK's `SequentialAgent`, `ParallelAgent`, and `LoopAgent` work well for multi-phase orchestration with shared state. The troubleshooting agent should use the same pattern:
+
+```python
+# Orchestrator as SequentialAgent
+troubleshooting_director = SequentialAgent(
+    name="TroubleshootingDirector",
+    sub_agents=[
+        triage_agent,           # Phase 0: always
+        end_to_end_tracer,      # Phase 1: trace Call-ID across stack
+        specialist_dispatcher,   # Phase 2: ParallelAgent of relevant specialists
+        synthesis_agent,         # Phase 3: merge findings into Diagnosis
+    ],
+)
+```
+
+Shared state via `session.state`:
+- `state["triage"]` — TriageReport from Phase 0
+- `state["trace"]` — TraceResult from Phase 1
+- `state["specialist_findings"]` — dict of specialist → SubDiagnosis
+- `state["diagnosis"]` — final Diagnosis
+
+### Estimated Impact on the UE1→UE2 Failure
+
+If v2 had been deployed:
+
+| Phase | What it would do | Time | Result |
+|---|---|---|---|
+| Phase 0 (Triage) | `get_nf_metrics()` + `query_prometheus` | ~3s | IMS stats captured. No obvious metric anomaly (GTP flowing, sessions active). |
+| Phase 1 (Trace) | Search for Call-ID across all containers | ~5s | **UE2 has no record of Call-ID.** Failure point: "between pcscf and e2e_ue2". |
+| Phase 2 (Specialists) | Transport Specialist dispatched (request sent but not received) | ~5s | `read_running_config(pcscf, "udp_mtu")` → `TCP`. `check_process_listeners(e2e_ue2)` → UDP only. **Root cause identified.** |
+| Synthesis | Merge: triage (healthy) + trace (UE2 never received) + transport (TCP/UDP mismatch) | ~3s | Correct diagnosis: P-CSCF sends INVITE via TCP, UE2 only listens UDP. |
+| **Total** | | **~16s** | **Correct diagnosis, score ~85%+** |
+
+vs. v1: ~2 minutes, incorrect diagnosis, score 10%.
 
 ---
 
@@ -942,5 +1151,19 @@ Full review in [`plan-review-feedback-gemini.md`](plan-review-feedback-gemini.md
 - **LTM / persistent memory (2.2):** `recall_similar_cases()` tool. Requires persistent storage, premature for v1.
 
 **Agreed with:**
-- **Single agent for v1 (Section 4):** Reinforces our existing architecture. The memory tiering proposal captures the benefits of MAS (context compression) without the coordination complexity. Re-evaluate for v2.
+- **Single agent for v1 (Section 4):** Reinforces our existing architecture. The memory tiering proposal captures the benefits of MAS (context compression) without the coordination complexity. ~~Re-evaluate for v2.~~ **UPDATE (2026-03-19):** v1.5 confirmed that single-agent limits are real, not theoretical. The UE1→UE2 call failure demonstrated context saturation, methodology abandonment, and inability to parallelize. v2 multi-agent decomposition is now a concrete plan, not a theoretical future option. See "v2: Multi-Agent Decomposition" section above.
+
+### Post-Incident Review (2026-03-19)
+
+**Triggering event:** UE1→UE2 call failure. Agent scored 10%.
+
+**Key lessons incorporated:**
+1. **Metrics tools added** (query_prometheus, get_nf_metrics) — the "radiograph" that was completely missing from v1
+2. **Runtime state tools added** (run_kamcmd, read_running_config, check_process_listeners) — the verification tools needed to disprove hypotheses
+3. **System prompt rewritten** — mandatory end-to-end verification, hypothesis disconfirmation, metrics-first methodology
+4. **v2 multi-agent architecture specified** — moves from "advisory methodology in system prompt" to "enforced discipline via architecture"
+5. **Transport Specialist agent designed** — directly from the `udp_mtu_try_proto` lesson, a specialist that checks transport layer state when requests vanish between nodes
+
+**Full postmortem:** [`operate/docs/RCAs/postmortem_ue1_calls_ue2_failure.md`](../docs/RCAs/postmortem_ue1_calls_ue2_failure.md)
+**Design reflections:** [`operate/docs/RCAs/agent_design_reflections.md`](../docs/RCAs/agent_design_reflections.md)
 

@@ -458,6 +458,31 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
     return ws
 
 
+async def handle_active_faults(request: web.Request) -> web.Response:
+    """Return active faults from the chaos monkey fault registry (data-ready for GUI)."""
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "operate"))
+        from agentic_chaos.fault_registry import FaultRegistry
+        registry = FaultRegistry()
+        await registry.initialize()
+        faults = await registry.get_active_faults()
+        return web.json_response([
+            {
+                "fault_id": f.fault_id,
+                "fault_type": f.fault_type,
+                "target": f.target,
+                "params": f.params,
+                "injected_at": f.injected_at.isoformat(),
+                "ttl_seconds": f.ttl_seconds,
+                "expires_at": f.expires_at.isoformat(),
+                "verified": f.verified,
+            }
+            for f in faults
+        ])
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_logs_ws(request: web.Request) -> web.WebSocketResponse:
     """WebSocket endpoint that streams docker logs for a container."""
     container = request.match_info["container"]
@@ -505,6 +530,7 @@ def create_app() -> web.Application:
     app.router.add_post("/api/explain", handle_explain)
     app.router.add_get("/ws/investigate", handle_investigate)
     app.router.add_get("/ws/logs/{container}", handle_logs_ws)
+    app.router.add_get("/api/chaos/faults", handle_active_faults)
     return app
 
 
