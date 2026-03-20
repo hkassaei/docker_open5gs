@@ -92,7 +92,7 @@ A Coordinator delegating to domain-specific specialists (IMS, Core, DB).
 *   **Cons:** High coordination overhead, potential "bystander effect" where cross-domain issues are missed, and increased token/time costs.
 
 ### Recommendation
-**Start with a Single Agent.** The "Hold Scope" diagnosis requirement for v1 is better served by the speed and context-integrity of a single model. The proposed **Memory Architecture** effectively captures the benefits of MAS (context compression) without its complexity. Re-evaluate for v2 when adding **Auto-Remediation**.
+**Start with a Single Agent.** The "Hold Scope" diagnosis requirement for v1 is better served by the speed and context-integrity of a single model. Using **Gemini 3.0 Pro** ensures the highest reasoning density and largest context window available in 2026. The proposed **Memory Architecture** effectively captures the benefits of MAS (context compression) without its complexity. Re-evaluate for v2 when adding **Auto-Remediation**.
 
 ---
 
