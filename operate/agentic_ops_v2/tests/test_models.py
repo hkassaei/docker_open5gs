@@ -5,8 +5,12 @@ sys.path.insert(0, "operate")
 
 from agentic_ops_v2.models import (
     Diagnosis,
+    InvestigationTrace,
+    PhaseTrace,
     SubDiagnosis,
     TimelineEvent,
+    TokenBreakdown,
+    ToolCallTrace,
     TraceResult,
     TriageReport,
 )
@@ -114,3 +118,110 @@ class TestDiagnosis:
         data = d.model_dump_json()
         d2 = Diagnosis.model_validate_json(data)
         assert d2.summary == "test"
+
+
+class TestTokenBreakdown:
+    def test_defaults_to_zero(self):
+        tb = TokenBreakdown()
+        assert tb.prompt == 0
+        assert tb.completion == 0
+        assert tb.thinking == 0
+        assert tb.total == 0
+
+    def test_populated(self):
+        tb = TokenBreakdown(prompt=1000, completion=200, thinking=50, total=1250)
+        assert tb.total == 1250
+
+
+class TestToolCallTrace:
+    def test_construction(self):
+        tc = ToolCallTrace(
+            name="read_container_logs",
+            args='{"container":"pcscf","grep":"udp_mtu"}',
+            result_size=245,
+            timestamp=1000.5,
+        )
+        assert tc.name == "read_container_logs"
+        assert tc.result_size == 245
+
+
+class TestPhaseTrace:
+    def test_defaults(self):
+        p = PhaseTrace(agent_name="TestAgent")
+        assert p.tokens.total == 0
+        assert p.tool_calls == []
+        assert p.llm_calls == 0
+        assert p.state_keys_written == []
+
+    def test_populated_phase(self):
+        p = PhaseTrace(
+            agent_name="TransportSpecialist",
+            started_at=1000.0,
+            finished_at=1006.2,
+            duration_ms=6200,
+            tokens=TokenBreakdown(prompt=35000, completion=3100, total=38100),
+            tool_calls=[
+                ToolCallTrace(name="read_running_config", args="{}", result_size=245),
+                ToolCallTrace(name="check_process_listeners", args="{}", result_size=180),
+            ],
+            llm_calls=3,
+            output_summary="Transport mismatch found.",
+            state_keys_written=["finding_transport"],
+        )
+        assert p.agent_name == "TransportSpecialist"
+        assert len(p.tool_calls) == 2
+        assert p.tokens.prompt == 35000
+        assert p.duration_ms == 6200
+
+    def test_json_roundtrip(self):
+        p = PhaseTrace(
+            agent_name="IMSSpecialist",
+            tokens=TokenBreakdown(prompt=10, completion=5, total=15),
+            llm_calls=1,
+        )
+        data = p.model_dump_json()
+        p2 = PhaseTrace.model_validate_json(data)
+        assert p2.agent_name == "IMSSpecialist"
+        assert p2.tokens.total == 15
+
+
+class TestInvestigationTrace:
+    def test_defaults(self):
+        t = InvestigationTrace()
+        assert t.phases == []
+        assert t.invocation_chain == []
+        assert t.total_tokens.total == 0
+
+    def test_full_trace(self):
+        t = InvestigationTrace(
+            question="Why can't UE1 call UE2?",
+            started_at=1000.0,
+            finished_at=1047.4,
+            duration_ms=47400,
+            total_tokens=TokenBreakdown(prompt=200000, completion=78000, total=278000),
+            phases=[
+                PhaseTrace(agent_name="TriageAgent", duration_ms=800, tokens=TokenBreakdown(total=1204)),
+                PhaseTrace(agent_name="EndToEndTracer", duration_ms=12300, tokens=TokenBreakdown(total=45200)),
+                PhaseTrace(agent_name="DispatchAgent", duration_ms=1100, tokens=TokenBreakdown(total=3100)),
+                PhaseTrace(agent_name="TransportSpecialist", duration_ms=6200, tokens=TokenBreakdown(total=38100)),
+                PhaseTrace(agent_name="SynthesisAgent", duration_ms=9800, tokens=TokenBreakdown(total=91200)),
+            ],
+            invocation_chain=["TriageAgent", "EndToEndTracer", "DispatchAgent", "TransportSpecialist", "SynthesisAgent"],
+        )
+        assert len(t.phases) == 5
+        assert t.invocation_chain[0] == "TriageAgent"
+        assert t.duration_ms == 47400
+        # Sum of phase tokens
+        phase_total = sum(p.tokens.total for p in t.phases)
+        assert phase_total == 1204 + 45200 + 3100 + 38100 + 91200
+
+    def test_json_roundtrip(self):
+        t = InvestigationTrace(
+            question="test",
+            phases=[PhaseTrace(agent_name="A", llm_calls=2)],
+            invocation_chain=["A"],
+        )
+        data = t.model_dump_json()
+        t2 = InvestigationTrace.model_validate_json(data)
+        assert t2.phases[0].agent_name == "A"
+        assert t2.phases[0].llm_calls == 2

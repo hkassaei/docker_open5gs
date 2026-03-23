@@ -236,3 +236,172 @@ Investigation complete · 1,478,204 tokens
 
   The token explosion is the critical issue — it suggests the ADK SequentialAgent is re-sending the full conversation context through each phase, and the LlmAgent specialists are burning tokens on their own
   internal reasoning loops. This needs investigation: is the context being properly distilled between phases, or is raw data leaking through the session state?
+
+
+
+## Attempt 2
+
+## Summary
+Call failure is caused by a misconfiguration in the I-CSCF's call-forwarding-failure logic, where a retry attempt incorrectly requests capabilities from an HSS that doesn't support it.
+
+## Root Cause
+## Diagnosis
+
+**summary:**
+Call failure is caused by a misconfiguration in the I-CSCF's call-forwarding-failure logic, where a retry attempt incorrectly requests capabilities from an HSS that doesn't support it.
+
+**timeline:**
+- `12:19:50.137` [e2e_ue1] sends SIP INVITE to `pcscf` to initiate a call to UE2.
+- `12:19:50.139` [pcscf] receives the INVITE and forwards it to the originating `scscf`.
+- `~12:19:50.140` [scscf] receives the INVITE and forwards it to the `icscf` to locate the terminating user (UE2).
+- `~12:19:50.141` [icscf] sends a Location-Information-Request (LIR) to `pyhss` to get UE2's assigned S-CSCF. `pyhss` responds with the correct S-CSCF address.
+- `~12:19:50.142` [icscf] attempts to forward (relay) the INVITE to the terminating S-CSCF. This relay attempt fails due to a timeout.
+- `~12:19:53.255` [icscf] The timeout triggers a failure-handling route. This route attempts to find an alternative S-CSCF by sending a *new* LIR to `pyhss`, but this time it incorrectly requests S-CSCF "capabilities".
+- `~12:19:53.255` [pyhss] receives the new LIR but cannot process the capabilities request, returning a response the `icscf` cannot use.
+- `12:19:53.256` [icscf] The S-CSCF selection fails. It sends a `SIP/2.0 500 Server error on LIR select next S-CSCF` response back to the originating `scscf`.
+- `12:19:53.256` [e2e_ue1] receives the propagated `500 Server error` and terminates the call attempt.
+- `12:19:53.257` [e2e_ue1] sends an ACK for the 500 error, ending the session.
+
+**root_cause:**
+The root cause is a software bug in the I-CSCF's Kamailio configuration script (`icscf.cfg`).
+1.  When the I-CSCF receives the INVITE, it successfully queries the HSS to find the correct terminating S-CSCF.
+2.  Its first attempt to forward the INVITE to that S-CSCF times out.
+3.  This timeout triggers a failover logic path (`failure_route[initial_request_failure]`).
+4.  This failover logic is misconfigured. It attempts to find a *new* S-CSCF by sending a second query to the HSS, but this time it requests S-CSCF capabilities (`I_scscf_select("1")`).
+5.  The HSS (`pyhss`) in this environment is not configured to handle capability requests. It returns an answer the I-CSCF cannot parse, causing the S-CSCF selection to fail.
+6.  This failure triggers the specific error message `Server error on LIR select next S-CSCF`, which is sent back to the user, terminating the call.
+
+The initial timeout is a symptom, but the configuration bug in the failover logic is the deterministic root cause of the final error.
+
+*Note on conflicting findings:* The Core Specialist incorrectly concluded the HSS data was malformed, misinterpreting the `scscf_peer` field. The actual SIP routing address (`scscf`) was correct in the HSS, as confirmed by the Subscriber Data and IMS specialists. The Transport Specialist found a valid, but latent, issue where the P-CSCF would attempt to use TCP to contact UE2, which only listens on UDP. This issue was never triggered because the call failed earlier at the I-CSCF.
+
+**affected_components:**
+- `icscf` (Root cause of failure)
+- `pyhss` (Behavior exposed the bug in icscf)
+- `scscf` (Propagated the failure)
+- `pcscf` (Propagated the failure)
+- `e2e_ue1` (Experienced the failure)
+
+**recommendation:**
+1.  **Primary Fix:** Correct the I-CSCF configuration to ensure failover logic is consistent with the initial logic.
+    - Edit the I-CSCF's Kamailio configuration file (`icscf.cfg`).
+    - Locate the `failure_route[initial_request_failure]` block.
+    - Change the line `if (I_scscf_select("1"))` to `if (I_scscf_select("0"))`.
+    - This change ensures that on a retry, the I-CSCF queries the HSS without requesting capabilities, matching the initial query's behavior and avoiding the incompatibility with the HSS.
+
+2.  **Secondary (Latent Bug) Fix:** Correct the transport protocol mismatch to prevent future failures.
+    - On the `pcscf` container, change the `udp_mtu_try_proto` parameter from `TCP` to `UDP`. This will prevent it from trying to switch to TCP for large messages sent to the UEs.
+    - *Alternatively*, reconfigure `e2e_ue2`'s pjsua client to listen for SIP on both UDP and TCP.
+
+**confidence:**
+high
+
+**explanation:**
+Hi NOC team,
+
+The call from UE1 to UE2 is failing because of a configuration bug in the I-CSCF, which acts as a traffic director in the IMS core.
+
+Here's the sequence of events:
+1.  The call (an INVITE request) correctly travels from UE1, through the P-CSCF, to the originating S-CSCF, and finally to the I-CSCF. The I-CSCF's job here is to ask the HSS (the user database) where to find the called party, UE2.
+2.  The I-CSCF correctly queries the HSS and gets back the right address for UE2's serving node (the terminating S-CSCF).
+3.  The I-CSCF's first attempt to forward the call to this S-CSCF timed out. This is likely due to a transient network issue.
+4.  Normally, the I-CSCF has failover logic to handle such a timeout. However, this is where the bug is. The failover logic tries to query the HSS *again*, but this time it asks for special "capabilities" of the S-CSCF.
+5.  Our HSS isn't set up to understand this "capabilities" request. It sends back a response that the I-CSCF's failover logic can't use.
+6.  As a result, the failover fails, and the I-CSCF gives up, sending a `500 Server error on LIR select next S-CSCF` back to UE1, which terminates the call.
+
+**Action to Take:**
+The immediate fix is to correct the I-CSCF's configuration. The failover logic needs to be changed so that its retry query to the HSS is identical to its first query (i.e., it should not ask for capabilities). The specific change is in the `icscf.cfg` file, modifying `I_scscf_select("1")` to `I_scscf_select("0")` in the `initial_request_failure` route.
+
+Additionally, our specialists found a second, unrelated issue: the P-CSCF is configured to switch to TCP for large messages, but the UEs are only listening on UDP. This would have caused the call to fail later anyway. We should also correct the P-CSCF configuration to prevent it from switching to TCP.
+
+
+**explanation:**
+Hello NOC engineer,
+
+We've diagnosed the call failure between UE1 and UE2. The root cause is a transport protocol mismatch during call setup, a "silent delivery failure".
+
+Here's the chain of events:
+1.  **Large SIP Message:** UE1 sent a call invitation (an INVITE message) that was over 1600 bytes. This is larger than a typical network packet size (MTU).
+2.  **P-CSCF Switches Protocol:** The P-CSCF, which handles routing the call to the final user, is configured to handle such large messages by switching the transport from UDP to the more reliable TCP. It correctly attempted to send this large INVITE to UE2 using TCP.
+3.  **Client Not Listening:** The problem is that the destination phone, UE2, was only listening for calls on UDP. It wasn't expecting a TCP connection. As a result, when the P-CSCF sent the call invite over TCP, UE2's network stack simply ignored it.
+4.  **Call Fails:** Since UE2 never received the INVITE, it never rang, and the call ultimately failed.
+
+You may have noticed a `500 Server error on LIR select next S-CSCF` from the I-CSCF in the logs. While this error is confusing, it was a red herring. The trace confirms that the call was successfully routed past the I-CSCF to the terminating side, meaning the I-CSCF did its job. The true failure happened at the very last step, between the P-CSCF and UE2, due to the TCP/UDP mismatch.
+
+To fix this, the client application on **UE2 needs to be configured to accept both UDP and TCP** for SIP signaling. This will ensure it can receive both standard and large-sized SIP messages from the P-CSCF.
+
+## Detailed Explanation
+
+## Diagnosis
+
+**summary:**
+Call failure is caused by a misconfiguration in the I-CSCF's call-forwarding-failure logic, where a retry attempt incorrectly requests capabilities from an HSS that doesn't support it.
+
+**timeline:**
+- `12:19:50.137` [e2e_ue1] sends SIP INVITE to `pcscf` to initiate a call to UE2.
+- `12:19:50.139` [pcscf] receives the INVITE and forwards it to the originating `scscf`.
+- `~12:19:50.140` [scscf] receives the INVITE and forwards it to the `icscf` to locate the terminating user (UE2).
+- `~12:19:50.141` [icscf] sends a Location-Information-Request (LIR) to `pyhss` to get UE2's assigned S-CSCF. `pyhss` responds with the correct S-CSCF address.
+- `~12:19:50.142` [icscf] attempts to forward (relay) the INVITE to the terminating S-CSCF. This relay attempt fails due to a timeout.
+- `~12:19:53.255` [icscf] The timeout triggers a failure-handling route. This route attempts to find an alternative S-CSCF by sending a *new* LIR to `pyhss`, but this time it incorrectly requests S-CSCF "capabilities".
+- `~12:19:53.255` [pyhss] receives the new LIR but cannot process the capabilities request, returning a response the `icscf` cannot use.
+- `12:19:53.256` [icscf] The S-CSCF selection fails. It sends a `SIP/2.0 500 Server error on LIR select next S-CSCF` response back to the originating `scscf`.
+- `12:19:53.256` [e2e_ue1] receives the propagated `500 Server error` and terminates the call attempt.
+- `12:19:53.257` [e2e_ue1] sends an ACK for the 500 error, ending the session.
+
+**root_cause:**
+The root cause is a software bug in the I-CSCF's Kamailio configuration script (`icscf.cfg`).
+1.  When the I-CSCF receives the INVITE, it successfully queries the HSS to find the correct terminating S-CSCF.
+2.  Its first attempt to forward the INVITE to that S-CSCF times out.
+3.  This timeout triggers a failover logic path (`failure_route[initial_request_failure]`).
+4.  This failover logic is misconfigured. It attempts to find a *new* S-CSCF by sending a second query to the HSS, but this time it requests S-CSCF capabilities (`I_scscf_select("1")`).
+5.  The HSS (`pyhss`) in this environment is not configured to handle capability requests. It returns an answer the I-CSCF cannot parse, causing the S-CSCF selection to fail.
+6.  This failure triggers the specific error message `Server error on LIR select next S-CSCF`, which is sent back to the user, terminating the call.
+
+The initial timeout is a symptom, but the configuration bug in the failover logic is the deterministic root cause of the final error.
+
+*Note on conflicting findings:* The Core Specialist incorrectly concluded the HSS data was malformed, misinterpreting the `scscf_peer` field. The actual SIP routing address (`scscf`) was correct in the HSS, as confirmed by the Subscriber Data and IMS specialists. The Transport Specialist found a valid, but latent, issue where the P-CSCF would attempt to use TCP to contact UE2, which only listens on UDP. This issue was never triggered because the call failed earlier at the I-CSCF.
+
+**affected_components:**
+- `icscf` (Root cause of failure)
+- `pyhss` (Behavior exposed the bug in icscf)
+- `scscf` (Propagated the failure)
+- `pcscf` (Propagated the failure)
+- `e2e_ue1` (Experienced the failure)
+
+**recommendation:**
+1.  **Primary Fix:** Correct the I-CSCF configuration to ensure failover logic is consistent with the initial logic.
+    - Edit the I-CSCF's Kamailio configuration file (`icscf.cfg`).
+    - Locate the `failure_route[initial_request_failure]` block.
+    - Change the line `if (I_scscf_select("1"))` to `if (I_scscf_select("0"))`.
+    - This change ensures that on a retry, the I-CSCF queries the HSS without requesting capabilities, matching the initial query's behavior and avoiding the incompatibility with the HSS.
+
+2.  **Secondary (Latent Bug) Fix:** Correct the transport protocol mismatch to prevent future failures.
+    - On the `pcscf` container, change the `udp_mtu_try_proto` parameter from `TCP` to `UDP`. This will prevent it from trying to switch to TCP for large messages sent to the UEs.
+    - *Alternatively*, reconfigure `e2e_ue2`'s pjsua client to listen for SIP on both UDP and TCP.
+
+**confidence:**
+high
+
+**explanation:**
+Hi NOC team,
+
+The call from UE1 to UE2 is failing because of a configuration bug in the I-CSCF, which acts as a traffic director in the IMS core.
+
+Here's the sequence of events:
+1.  The call (an INVITE request) correctly travels from UE1, through the P-CSCF, to the originating S-CSCF, and finally to the I-CSCF. The I-CSCF's job here is to ask the HSS (the user database) where to find the called party, UE2.
+2.  The I-CSCF correctly queries the HSS and gets back the right address for UE2's serving node (the terminating S-CSCF).
+3.  The I-CSCF's first attempt to forward the call to this S-CSCF timed out. This is likely due to a transient network issue.
+4.  Normally, the I-CSCF has failover logic to handle such a timeout. However, this is where the bug is. The failover logic tries to query the HSS *again*, but this time it asks for special "capabilities" of the S-CSCF.
+5.  Our HSS isn't set up to understand this "capabilities" request. It sends back a response that the I-CSCF's failover logic can't use.
+6.  As a result, the failover fails, and the I-CSCF gives up, sending a `500 Server error on LIR select next S-CSCF` back to UE1, which terminates the call.
+
+**Action to Take:**
+The immediate fix is to correct the I-CSCF's configuration. The failover logic needs to be changed so that its retry query to the HSS is identical to its first query (i.e., it should not ask for capabilities). The specific change is in the `icscf.cfg` file, modifying `I_scscf_select("1")` to `I_scscf_select("0")` in the `initial_request_failure` route.
+
+Additionally, our specialists found a second, unrelated issue: the P-CSCF is configured to switch to TCP for large messages, but the UEs are only listening on UDP. This would have caused the call to fail later anyway. We should also correct the P-CSCF configuration to prevent it from switching to TCP.
+
+
+Confidence: medium
+
+Investigation complete · 1,359,366 tokens

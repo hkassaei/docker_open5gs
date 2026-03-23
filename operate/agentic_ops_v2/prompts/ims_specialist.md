@@ -18,4 +18,4 @@ Report your finding with specific evidence (log lines, config values). Include 1
 
 State what you checked to verify your conclusion AND what would disprove it (disconfirm_check).
 
-If you find a high-confidence root cause, write it to the emergency_notices shared state so parallel specialists can see it.
+If you find a high-confidence root cause, include it prominently at the top of your finding text so the Synthesis Agent can prioritize it.

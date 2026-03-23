@@ -762,6 +762,7 @@
     </div>
     <div id="inv2-progress" style="padding:12px 20px;max-height:250px;overflow-y:auto;font-family:'SF Mono',monospace;font-size:12px;color:var(--text-dim);border-bottom:1px solid var(--border);display:none"></div>
     <div id="inv2-result" style="flex:1;overflow-y:auto;padding:16px 20px;font-size:14px;line-height:1.7;display:none"></div>
+    <div id="inv2-trace" style="display:none;padding:0 20px 12px;font-family:'SF Mono',monospace;font-size:12px"></div>
     <div class="modal-footer" id="inv2-footer" style="display:none">
       <span id="inv2-status" style="font-size:12px;color:var(--text-dim)"></span>
     </div>
@@ -1394,6 +1395,8 @@ function openInvestigateV2() {
   document.getElementById('inv2-progress').innerHTML = '';
   document.getElementById('inv2-result').style.display = 'none';
   document.getElementById('inv2-result').innerHTML = '';
+  document.getElementById('inv2-trace').style.display = 'none';
+  document.getElementById('inv2-trace').innerHTML = '';
   document.getElementById('inv2-footer').style.display = 'none';
   document.getElementById('inv2-status').textContent = '';
   document.getElementById('inv2-send-btn').disabled = false;
@@ -1435,16 +1438,23 @@ function sendInvestigationV2() {
 
     if (msg.type === 'status') {
       addInv2Progress('status', msg.message);
+    } else if (msg.type === 'phase_start') {
+      addInv2Progress('phase', `▶ ${msg.agent}`);
+      status.textContent = `Running: ${msg.agent}`;
     } else if (msg.type === 'tool_call') {
-      addInv2Progress('tool', `🔧 ${msg.name}(${truncate(msg.args, 100)})`);
+      const agent = msg.agent ? `[${msg.agent}] ` : '';
+      addInv2Progress('tool', `  ${agent}🔧 ${msg.name}(${truncate(msg.args || '', 100)})`);
     } else if (msg.type === 'tool_result') {
-      addInv2Progress('result', `  ↳ ${msg.name}: ${truncate(msg.preview, 150)}`);
+      addInv2Progress('result', `    ↳ ${msg.name}: ${truncate(msg.preview || '', 150)}`);
     } else if (msg.type === 'text') {
-      addInv2Progress('text', msg.content);
+      const agent = msg.agent ? `[${msg.agent}] ` : '';
+      addInv2Progress('text', `  ${agent}${truncate(msg.content || '', 200)}`);
     } else if (msg.type === 'diagnosis') {
       renderDiagnosisV2(msg);
       status.textContent = 'Investigation complete';
       status.style.color = 'var(--green)';
+    } else if (msg.type === 'investigation_trace') {
+      renderInvestigationTrace(msg.trace);
     } else if (msg.type === 'usage') {
       const existing = status.textContent;
       status.textContent = `${existing} · ${msg.total_tokens.toLocaleString()} tokens`;
@@ -1474,7 +1484,11 @@ function addInv2Progress(type, text) {
   const progress = document.getElementById('inv2-progress');
   const line = document.createElement('div');
   line.style.marginBottom = '2px';
-  if (type === 'tool') {
+  if (type === 'phase') {
+    line.style.color = 'var(--cyan)';
+    line.style.fontWeight = '600';
+    line.style.marginTop = '6px';
+  } else if (type === 'tool') {
     line.style.color = 'var(--purple)';
   } else if (type === 'result') {
     line.style.color = 'var(--text-dim)';
@@ -1548,6 +1562,101 @@ function renderDiagnosisV2(diag) {
   </div>`;
 
   result.innerHTML = html;
+}
+
+function renderInvestigationTrace(trace) {
+  const container = document.getElementById('inv2-trace');
+  if (!trace || !trace.phases || trace.phases.length === 0) return;
+  container.style.display = 'block';
+
+  const phases = trace.phases;
+  const totalTokens = trace.total_tokens?.total || 0;
+  const durationSec = ((trace.duration_ms || 0) / 1000).toFixed(1);
+
+  // Find max tokens for bar chart scaling
+  const maxTokens = Math.max(...phases.map(p => p.tokens?.total || 0), 1);
+
+  let html = `<div style="margin-bottom:8px;cursor:pointer;user-select:none" onclick="this.parentElement.querySelector('.trace-body').classList.toggle('trace-collapsed')">
+    <span style="color:var(--cyan);font-weight:600">Investigation Trace</span>
+    <span style="color:var(--text-dim);margin-left:8px">${phases.length} agents · ${totalTokens.toLocaleString()} tokens · ${durationSec}s</span>
+    <span style="color:var(--text-dim);margin-left:4px;font-size:10px">▼ click to toggle</span>
+  </div>`;
+
+  html += `<div class="trace-body" style="background:var(--bg);border-radius:6px;padding:10px;border:1px solid var(--border)">`;
+
+  // Header row
+  html += `<div style="display:grid;grid-template-columns:180px 70px 100px 50px 50px 1fr;gap:6px;padding:4px 0;border-bottom:1px solid var(--border);color:var(--text-dim);font-size:11px;margin-bottom:4px">
+    <span>Agent</span><span style="text-align:right">Duration</span><span style="text-align:right">Tokens</span><span style="text-align:right">Tools</span><span style="text-align:right">LLM</span><span style="padding-left:8px">Token Distribution</span>
+  </div>`;
+
+  for (const p of phases) {
+    const dur = ((p.duration_ms || 0) / 1000).toFixed(1);
+    const tok = p.tokens?.total || 0;
+    const prompt = p.tokens?.prompt || 0;
+    const completion = p.tokens?.completion || 0;
+    const thinking = p.tokens?.thinking || 0;
+    const tools = (p.tool_calls || []).length;
+    const llm = p.llm_calls || 0;
+    const barPct = Math.max((tok / maxTokens) * 100, 1);
+    const promptPct = tok > 0 ? (prompt / tok) * 100 : 0;
+    const completionPct = tok > 0 ? (completion / tok) * 100 : 0;
+    const thinkingPct = tok > 0 ? (thinking / tok) * 100 : 0;
+
+    // Expandable row
+    const rowId = 'trace-row-' + p.agent_name.replace(/\W/g, '_');
+    html += `<div style="display:grid;grid-template-columns:180px 70px 100px 50px 50px 1fr;gap:6px;padding:4px 0;align-items:center;cursor:pointer;border-bottom:1px solid var(--border)" onclick="document.getElementById('${rowId}').style.display = document.getElementById('${rowId}').style.display === 'none' ? 'block' : 'none'">
+      <span style="color:var(--cyan);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(p.agent_name)}">${escapeHtml(p.agent_name)}</span>
+      <span style="text-align:right;color:var(--text-dim)">${dur}s</span>
+      <span style="text-align:right">${tok.toLocaleString()}</span>
+      <span style="text-align:right;color:var(--purple)">${tools}</span>
+      <span style="text-align:right;color:var(--orange)">${llm}</span>
+      <div style="padding-left:8px;display:flex;align-items:center;gap:4px">
+        <div style="flex:1;height:14px;background:var(--surface2);border-radius:3px;overflow:hidden;display:flex" title="Prompt: ${prompt.toLocaleString()} · Completion: ${completion.toLocaleString()}${thinking > 0 ? ' · Thinking: ' + thinking.toLocaleString() : ''}">
+          <div style="width:${promptPct}%;background:var(--accent);min-width:${prompt > 0 ? 2 : 0}px"></div>
+          <div style="width:${completionPct}%;background:var(--green);min-width:${completion > 0 ? 2 : 0}px"></div>
+          ${thinking > 0 ? `<div style="width:${thinkingPct}%;background:var(--orange);min-width:2px"></div>` : ''}
+        </div>
+        <span style="font-size:10px;color:var(--text-dim);white-space:nowrap;width:40px;text-align:right">${Math.round(barPct)}%</span>
+      </div>
+    </div>`;
+
+    // Expandable detail panel
+    html += `<div id="${rowId}" style="display:none;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);font-size:11px">`;
+
+    // Token breakdown
+    html += `<div style="margin-bottom:4px;color:var(--text-dim)">Tokens: <span style="color:var(--accent)">prompt ${prompt.toLocaleString()}</span> · <span style="color:var(--green)">completion ${completion.toLocaleString()}</span>${thinking > 0 ? ` · <span style="color:var(--orange)">thinking ${thinking.toLocaleString()}</span>` : ''}</div>`;
+
+    // State keys
+    if (p.state_keys_written && p.state_keys_written.length > 0) {
+      html += `<div style="margin-bottom:4px;color:var(--text-dim)">State: ${p.state_keys_written.map(k => `<span style="color:var(--yellow)">${escapeHtml(k)}</span>`).join(', ')}</div>`;
+    }
+
+    // Tool calls
+    if (p.tool_calls && p.tool_calls.length > 0) {
+      html += `<div style="margin-bottom:2px;color:var(--text-dim)">Tool calls:</div>`;
+      for (const tc of p.tool_calls) {
+        const size = tc.result_size > 0 ? ` → ${(tc.result_size / 1024).toFixed(1)}KB` : '';
+        html += `<div style="padding-left:12px;color:var(--purple)">${escapeHtml(tc.name)}(<span style="color:var(--text-dim)">${escapeHtml(truncate(tc.args || '', 80))}</span>)${size}</div>`;
+      }
+    }
+
+    // Output summary
+    if (p.output_summary) {
+      html += `<div style="margin-top:4px;color:var(--text-dim)">Output: <span style="color:var(--text)">${escapeHtml(truncate(p.output_summary, 200))}</span></div>`;
+    }
+
+    html += `</div>`;
+  }
+
+  // Legend
+  html += `<div style="margin-top:8px;font-size:10px;color:var(--text-dim);display:flex;gap:12px">
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--accent);border-radius:2px;vertical-align:middle"></span> prompt</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:2px;vertical-align:middle"></span> completion</span>
+    <span><span style="display:inline-block;width:10px;height:10px;background:var(--orange);border-radius:2px;vertical-align:middle"></span> thinking</span>
+  </div>`;
+
+  html += `</div>`;
+  container.innerHTML = html;
 }
 
 function closeInvestigationV2() {

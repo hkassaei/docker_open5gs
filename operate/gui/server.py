@@ -461,9 +461,9 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
 async def handle_investigate_v2(request: web.Request) -> web.WebSocketResponse:
     """WebSocket endpoint for the v2 multi-agent troubleshooting system.
 
-    Same protocol as v1 (tool_call, tool_result, diagnosis, usage events)
-    but uses the multi-phase ADK pipeline: triage → trace → dispatch →
-    specialists → synthesis.
+    Streams live per-agent trace events (phase_start, phase_complete,
+    tool_call, tool_result, text) as they happen, then sends the
+    diagnosis, full investigation trace, and token usage.
     """
     ws = web.WebSocketResponse()
     await ws.prepare(request)
@@ -481,55 +481,16 @@ async def handle_investigate_v2(request: web.Request) -> web.WebSocketResponse:
 
         await _ws_send(ws, {"type": "status", "message": "Starting v2 multi-agent investigation..."})
 
-        # Run the v2 pipeline
-        result = await investigate(question)
+        # Live event callback — streams trace events to the WebSocket as
+        # they are emitted by the orchestrator's event loop.
+        async def on_event(evt: dict) -> None:
+            await _ws_send(ws, evt)
 
-        # Stream phase completions as progress events
-        if result.get("triage"):
-            triage = result["triage"]
-            anomalies = triage.get("anomalies", [])
-            await _ws_send(ws, {
-                "type": "tool_call",
-                "name": "Phase 0: Triage",
-                "args": f"phase={triage.get('stack_phase')}, anomalies={len(anomalies)}",
-            })
-            if anomalies:
-                await _ws_send(ws, {
-                    "type": "tool_result",
-                    "name": "Triage anomalies",
-                    "preview": "; ".join(anomalies)[:200],
-                })
-
-        if result.get("trace"):
-            trace = result["trace"]
-            trace_str = trace if isinstance(trace, str) else str(trace)
-            await _ws_send(ws, {
-                "type": "tool_call",
-                "name": "Phase 1: End-to-End Trace",
-                "args": trace_str[:150],
-            })
-
-        if result.get("dispatch"):
-            dispatch = result["dispatch"]
-            await _ws_send(ws, {
-                "type": "tool_call",
-                "name": "Phase 2: Dispatch",
-                "args": f"specialists={dispatch.get('specialists')}, rationale={dispatch.get('rationale', '')[:80]}",
-            })
-
-        if result.get("findings"):
-            for name, finding in result["findings"].items():
-                finding_str = finding if isinstance(finding, str) else str(finding)
-                await _ws_send(ws, {
-                    "type": "tool_result",
-                    "name": f"Specialist: {name}",
-                    "preview": finding_str[:200],
-                })
+        result = await investigate(question, on_event=on_event)
 
         # Send diagnosis
         diagnosis = result.get("diagnosis")
         if diagnosis and isinstance(diagnosis, str):
-            # LlmAgent output_key stores the raw text — parse or send as-is
             await _ws_send(ws, {
                 "type": "diagnosis",
                 "summary": diagnosis[:200] if len(diagnosis) > 200 else diagnosis,
@@ -563,7 +524,14 @@ async def handle_investigate_v2(request: web.Request) -> web.WebSocketResponse:
                 "explanation": "",
             })
 
-        # Send token usage
+        # Send the full investigation trace
+        inv_trace = result.get("investigation_trace", {})
+        await _ws_send(ws, {
+            "type": "investigation_trace",
+            "trace": inv_trace,
+        })
+
+        # Send token usage (backward compat)
         await _ws_send(ws, {
             "type": "usage",
             "total_tokens": result.get("total_tokens", 0),

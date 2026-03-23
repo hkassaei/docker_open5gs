@@ -144,3 +144,81 @@ class Diagnosis(BaseModel):
 
     explanation: str = ""
     """Plain-English explanation geared toward a NOC engineer."""
+
+
+# -------------------------------------------------------------------------
+# Investigation Trace (observability)
+# -------------------------------------------------------------------------
+
+class TokenBreakdown(BaseModel):
+    """Token usage split by category for a single agent."""
+
+    prompt: int = 0
+    """Input tokens (context sent to the LLM)."""
+
+    completion: int = 0
+    """Output tokens (LLM response)."""
+
+    thinking: int = 0
+    """Reasoning/thinking tokens (Gemini extended thinking)."""
+
+    total: int = 0
+    """Sum of all token types."""
+
+
+class ToolCallTrace(BaseModel):
+    """Record of a single tool invocation by an agent."""
+
+    name: str
+    """Tool function name, e.g. 'read_container_logs'."""
+
+    args: str = ""
+    """Stringified arguments (truncated for display)."""
+
+    result_size: int = 0
+    """Character count of the tool's return value."""
+
+    timestamp: float = 0.0
+
+
+class PhaseTrace(BaseModel):
+    """Observability record for one agent's execution within the pipeline."""
+
+    agent_name: str
+    """The agent that ran, e.g. 'TriageAgent', 'IMSSpecialist'."""
+
+    started_at: float = 0.0
+    finished_at: float = 0.0
+
+    duration_ms: int = 0
+    """Wall-clock duration in milliseconds."""
+
+    tokens: TokenBreakdown = Field(default_factory=TokenBreakdown)
+
+    tool_calls: list[ToolCallTrace] = Field(default_factory=list)
+
+    llm_calls: int = 0
+    """Number of LLM round-trips this agent made."""
+
+    output_summary: str = ""
+    """First 500 chars of the agent's text output."""
+
+    state_keys_written: list[str] = Field(default_factory=list)
+    """Session state keys this agent wrote to."""
+
+
+class InvestigationTrace(BaseModel):
+    """Full observability trace for a multi-agent investigation run."""
+
+    question: str = ""
+    started_at: float = 0.0
+    finished_at: float = 0.0
+    duration_ms: int = 0
+
+    total_tokens: TokenBreakdown = Field(default_factory=TokenBreakdown)
+
+    phases: list[PhaseTrace] = Field(default_factory=list)
+    """Ordered list of agent executions."""
+
+    invocation_chain: list[str] = Field(default_factory=list)
+    """Ordered agent names as they were invoked."""
