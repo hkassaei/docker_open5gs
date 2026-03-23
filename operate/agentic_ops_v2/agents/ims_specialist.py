@@ -25,7 +25,6 @@ def create_ims_specialist() -> LlmAgent:
         description="Investigates IMS/SIP signaling failures in P-CSCF, I-CSCF, S-CSCF, and PyHSS.",
         output_key="finding_ims",
         tools=[
-            tools.read_container_logs,
             tools.run_kamcmd,
             tools.read_running_config,
         ],

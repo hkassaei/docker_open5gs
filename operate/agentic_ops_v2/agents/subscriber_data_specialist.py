@@ -26,6 +26,5 @@ def create_subscriber_data_specialist() -> LlmAgent:
         output_key="finding_subscriber_data",
         tools=[
             tools.query_subscriber,
-            tools.query_prometheus,
         ],
     )

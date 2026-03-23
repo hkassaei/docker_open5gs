@@ -2,9 +2,9 @@
 Investigation Director — the top-level orchestrator for v2 troubleshooting.
 
 Wires the 4-phase pipeline:
-  Phase 0: Triage (deterministic + LLM oversight)
+  Phase 0: Triage (LlmAgent — Gemini Flash with metrics tools)
   Phase 1: End-to-End Trace (LlmAgent)
-  Phase 2: Strategic Dispatch + Parallel Specialists
+  Phase 2: Strategic Dispatch (LlmAgent) + Parallel Specialists
   Phase 3: Synthesis (LlmAgent)
 
 Usage:
@@ -18,15 +18,17 @@ from __future__ import annotations
 import json
 import logging
 import time
+from datetime import datetime
+from pathlib import Path
 
 from google.adk.agents import SequentialAgent, ParallelAgent
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
-from .agents.triage import TriageAgent
+from .agents.triage import create_triage_agent
 from .agents.tracer import create_tracer_agent
-from .agents.dispatcher import DispatchAgent
+from .agents.dispatcher import create_dispatch_agent
 from .agents.ims_specialist import create_ims_specialist
 from .agents.transport_specialist import create_transport_specialist
 from .agents.core_specialist import create_core_specialist
@@ -108,9 +110,9 @@ def create_investigation_director(
             "triage → trace → dispatch → specialists → synthesis."
         ),
         sub_agents=[
-            TriageAgent(),
+            create_triage_agent(),
             create_tracer_agent(),
-            DispatchAgent(),
+            create_dispatch_agent(),
             specialists,
             create_synthesis_agent(),
         ],
@@ -346,6 +348,24 @@ async def investigate(question: str, on_event=None) -> dict:
     result["total_tokens"] = total_tokens
     result["investigation_trace"] = trace_obj.model_dump()
 
+    # --- Persist trace to disk ---
+    _persist_run(result)
+
     log.info("Investigation complete. Total tokens: %d. Diagnosis: %s",
              total_tokens, str(state.get("diagnosis", ""))[:200])
     return result
+
+
+def _persist_run(result: dict) -> None:
+    """Save the full investigation result as JSON to docs/agent_logs/."""
+    try:
+        logs_dir = Path(__file__).resolve().parents[0] / "docs" / "agent_logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+        path = logs_dir / f"run_{ts}.json"
+        with open(path, "w") as f:
+            json.dump(result, f, indent=2, default=str)
+        log.info("Trace persisted to %s", path)
+    except Exception:
+        log.warning("Failed to persist trace", exc_info=True)

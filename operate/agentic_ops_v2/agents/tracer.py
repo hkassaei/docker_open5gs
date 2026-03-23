@@ -20,7 +20,7 @@ def create_tracer_agent() -> LlmAgent:
     """Create the Phase 1 End-to-End Trace agent."""
     return LlmAgent(
         name="EndToEndTracer",
-        model="gemini-2.5-flash",
+        model="gemini-2.5-pro",
         instruction=_PROMPT_PATH.read_text(),
         description="Traces a SIP Call-ID across all containers to find where the request stopped.",
         output_key="trace",

@@ -25,8 +25,6 @@ def create_core_specialist() -> LlmAgent:
         description="Investigates 5G core NF failures: AMF, SMF, UPF, PFCP, GTP-U.",
         output_key="finding_core",
         tools=[
-            tools.read_container_logs,
-            tools.query_prometheus,
             tools.read_running_config,
         ],
     )
