@@ -458,6 +458,125 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
     return ws
 
 
+async def handle_investigate_v2(request: web.Request) -> web.WebSocketResponse:
+    """WebSocket endpoint for the v2 multi-agent troubleshooting system.
+
+    Same protocol as v1 (tool_call, tool_result, diagnosis, usage events)
+    but uses the multi-phase ADK pipeline: triage → trace → dispatch →
+    specialists → synthesis.
+    """
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    msg = await ws.receive_json()
+    question = msg.get("question", "").strip()
+    if not question:
+        await _ws_send(ws, {"type": "error", "message": "No question provided"})
+        await ws.close()
+        return ws
+
+    try:
+        sys.path.insert(0, str(REPO_ROOT / "operate"))
+        from agentic_ops_v2.orchestrator import investigate
+
+        await _ws_send(ws, {"type": "status", "message": "Starting v2 multi-agent investigation..."})
+
+        # Run the v2 pipeline
+        result = await investigate(question)
+
+        # Stream phase completions as progress events
+        if result.get("triage"):
+            triage = result["triage"]
+            anomalies = triage.get("anomalies", [])
+            await _ws_send(ws, {
+                "type": "tool_call",
+                "name": "Phase 0: Triage",
+                "args": f"phase={triage.get('stack_phase')}, anomalies={len(anomalies)}",
+            })
+            if anomalies:
+                await _ws_send(ws, {
+                    "type": "tool_result",
+                    "name": "Triage anomalies",
+                    "preview": "; ".join(anomalies)[:200],
+                })
+
+        if result.get("trace"):
+            trace = result["trace"]
+            trace_str = trace if isinstance(trace, str) else str(trace)
+            await _ws_send(ws, {
+                "type": "tool_call",
+                "name": "Phase 1: End-to-End Trace",
+                "args": trace_str[:150],
+            })
+
+        if result.get("dispatch"):
+            dispatch = result["dispatch"]
+            await _ws_send(ws, {
+                "type": "tool_call",
+                "name": "Phase 2: Dispatch",
+                "args": f"specialists={dispatch.get('specialists')}, rationale={dispatch.get('rationale', '')[:80]}",
+            })
+
+        if result.get("findings"):
+            for name, finding in result["findings"].items():
+                finding_str = finding if isinstance(finding, str) else str(finding)
+                await _ws_send(ws, {
+                    "type": "tool_result",
+                    "name": f"Specialist: {name}",
+                    "preview": finding_str[:200],
+                })
+
+        # Send diagnosis
+        diagnosis = result.get("diagnosis")
+        if diagnosis and isinstance(diagnosis, str):
+            # LlmAgent output_key stores the raw text — parse or send as-is
+            await _ws_send(ws, {
+                "type": "diagnosis",
+                "summary": diagnosis[:200] if len(diagnosis) > 200 else diagnosis,
+                "timeline": [],
+                "root_cause": diagnosis,
+                "affected_components": [],
+                "recommendation": "",
+                "confidence": "medium",
+                "explanation": diagnosis,
+            })
+        elif diagnosis and isinstance(diagnosis, dict):
+            await _ws_send(ws, {
+                "type": "diagnosis",
+                "summary": diagnosis.get("summary", ""),
+                "timeline": diagnosis.get("timeline", []),
+                "root_cause": diagnosis.get("root_cause", ""),
+                "affected_components": diagnosis.get("affected_components", []),
+                "recommendation": diagnosis.get("recommendation", ""),
+                "confidence": diagnosis.get("confidence", "medium"),
+                "explanation": diagnosis.get("explanation", ""),
+            })
+        else:
+            await _ws_send(ws, {
+                "type": "diagnosis",
+                "summary": "Investigation complete — see phase results above",
+                "timeline": [],
+                "root_cause": str(result.get("findings", {})),
+                "affected_components": [],
+                "recommendation": "",
+                "confidence": "medium",
+                "explanation": "",
+            })
+
+        # Send token usage
+        await _ws_send(ws, {
+            "type": "usage",
+            "total_tokens": result.get("total_tokens", 0),
+        })
+
+    except Exception as exc:
+        log.exception("v2 investigation failed")
+        await _ws_send(ws, {"type": "error", "message": str(exc)})
+
+    await ws.close()
+    return ws
+
+
 async def handle_active_faults(request: web.Request) -> web.Response:
     """Return active faults from the chaos monkey fault registry (data-ready for GUI)."""
     try:
@@ -529,6 +648,7 @@ def create_app() -> web.Application:
     app.router.add_post("/api/ue/{ue}/{action}", handle_ue_action)
     app.router.add_post("/api/explain", handle_explain)
     app.router.add_get("/ws/investigate", handle_investigate)
+    app.router.add_get("/ws/investigate-v2", handle_investigate_v2)
     app.router.add_get("/ws/logs/{container}", handle_logs_ws)
     app.router.add_get("/api/chaos/faults", handle_active_faults)
     return app

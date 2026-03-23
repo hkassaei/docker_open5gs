@@ -600,6 +600,7 @@
     <button id="btn-teardown-stack" class="danger" onclick="teardownStack()">Tear Down Stack</button>
     <span style="border-left:1px solid var(--border);height:24px;margin:0 4px"></span>
     <button id="btn-investigate" class="primary" onclick="openInvestigate()">Investigate</button>
+    <button id="btn-investigate-v2" class="primary" onclick="openInvestigateV2()" style="background:linear-gradient(135deg,#7c3aed,#4f8ff7)">Investigate V2</button>
   </div>
 
   <!-- Tab: Topology -->
@@ -744,6 +745,25 @@
     <div id="inv-result" style="flex:1;overflow-y:auto;padding:16px 20px;font-size:14px;line-height:1.7;display:none"></div>
     <div class="modal-footer" id="inv-footer" style="display:none">
       <span id="inv-status" style="font-size:12px;color:var(--text-dim)"></span>
+    </div>
+  </div>
+</div>
+
+<!-- Investigation V2 modal (multi-agent) -->
+<div class="modal-overlay" id="inv2-overlay">
+  <div class="modal" style="width:800px;max-height:85vh">
+    <div class="modal-header">
+      <h3>AI Investigation V2 <span style="font-size:12px;font-weight:400;color:var(--purple)">(multi-agent)</span></h3>
+      <button onclick="closeInvestigationV2()" id="inv2-close-btn">Close</button>
+    </div>
+    <div id="inv2-input" style="padding:12px 20px;border-bottom:1px solid var(--border);display:flex;gap:8px">
+      <input type="text" id="inv2-question" placeholder="e.g. Why can't UE1 call UE2?" style="flex:1;padding:8px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px">
+      <button class="primary" id="inv2-send-btn" onclick="sendInvestigationV2()" style="background:linear-gradient(135deg,#7c3aed,#4f8ff7)">Investigate</button>
+    </div>
+    <div id="inv2-progress" style="padding:12px 20px;max-height:250px;overflow-y:auto;font-family:'SF Mono',monospace;font-size:12px;color:var(--text-dim);border-bottom:1px solid var(--border);display:none"></div>
+    <div id="inv2-result" style="flex:1;overflow-y:auto;padding:16px 20px;font-size:14px;line-height:1.7;display:none"></div>
+    <div class="modal-footer" id="inv2-footer" style="display:none">
+      <span id="inv2-status" style="font-size:12px;color:var(--text-dim)"></span>
     </div>
   </div>
 </div>
@@ -1362,6 +1382,180 @@ function closeInvestigation() {
     invWs = null;
   }
   document.getElementById('inv-overlay').classList.remove('active');
+}
+
+// --- Investigation V2 (multi-agent) ---
+let inv2Ws = null;
+
+function openInvestigateV2() {
+  const overlay = document.getElementById('inv2-overlay');
+  document.getElementById('inv2-question').value = '';
+  document.getElementById('inv2-progress').style.display = 'none';
+  document.getElementById('inv2-progress').innerHTML = '';
+  document.getElementById('inv2-result').style.display = 'none';
+  document.getElementById('inv2-result').innerHTML = '';
+  document.getElementById('inv2-footer').style.display = 'none';
+  document.getElementById('inv2-status').textContent = '';
+  document.getElementById('inv2-send-btn').disabled = false;
+  document.getElementById('inv2-send-btn').textContent = 'Investigate';
+  document.getElementById('inv2-input').style.display = 'flex';
+  overlay.classList.add('active');
+  document.getElementById('inv2-question').focus();
+}
+
+function sendInvestigationV2() {
+  const input = document.getElementById('inv2-question');
+  const question = input.value.trim();
+  if (!question) return;
+
+  const sendBtn = document.getElementById('inv2-send-btn');
+  const progress = document.getElementById('inv2-progress');
+  const result = document.getElementById('inv2-result');
+  const footer = document.getElementById('inv2-footer');
+  const status = document.getElementById('inv2-status');
+
+  sendBtn.disabled = true;
+  sendBtn.textContent = 'Working...';
+  progress.style.display = 'block';
+  progress.innerHTML = '';
+  result.style.display = 'none';
+  result.innerHTML = '';
+  footer.style.display = 'flex';
+  status.textContent = 'Connecting to v2 pipeline...';
+
+  inv2Ws = new WebSocket(`${WS_BASE}/ws/investigate-v2`);
+
+  inv2Ws.onopen = () => {
+    status.textContent = 'Multi-agent investigation in progress...';
+    inv2Ws.send(JSON.stringify({ question }));
+  };
+
+  inv2Ws.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+
+    if (msg.type === 'status') {
+      addInv2Progress('status', msg.message);
+    } else if (msg.type === 'tool_call') {
+      addInv2Progress('tool', `🔧 ${msg.name}(${truncate(msg.args, 100)})`);
+    } else if (msg.type === 'tool_result') {
+      addInv2Progress('result', `  ↳ ${msg.name}: ${truncate(msg.preview, 150)}`);
+    } else if (msg.type === 'text') {
+      addInv2Progress('text', msg.content);
+    } else if (msg.type === 'diagnosis') {
+      renderDiagnosisV2(msg);
+      status.textContent = 'Investigation complete';
+      status.style.color = 'var(--green)';
+    } else if (msg.type === 'usage') {
+      const existing = status.textContent;
+      status.textContent = `${existing} · ${msg.total_tokens.toLocaleString()} tokens`;
+    } else if (msg.type === 'error') {
+      result.style.display = 'block';
+      result.innerHTML = `<div style="color:var(--red)">Error: ${escapeHtml(msg.message)}</div>`;
+      status.textContent = 'Failed';
+      status.style.color = 'var(--red)';
+    }
+  };
+
+  inv2Ws.onerror = () => {
+    status.textContent = 'WebSocket error';
+    status.style.color = 'var(--red)';
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Investigate';
+  };
+
+  inv2Ws.onclose = () => {
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Investigate';
+    inv2Ws = null;
+  };
+}
+
+function addInv2Progress(type, text) {
+  const progress = document.getElementById('inv2-progress');
+  const line = document.createElement('div');
+  line.style.marginBottom = '2px';
+  if (type === 'tool') {
+    line.style.color = 'var(--purple)';
+  } else if (type === 'result') {
+    line.style.color = 'var(--text-dim)';
+    line.style.fontSize = '11px';
+  } else if (type === 'status') {
+    line.style.color = 'var(--accent)';
+  }
+  line.textContent = text;
+  progress.appendChild(line);
+  progress.scrollTop = progress.scrollHeight;
+}
+
+function renderDiagnosisV2(diag) {
+  // Reuse the same rendering as v1 — same Diagnosis schema
+  const result = document.getElementById('inv2-result');
+  result.style.display = 'block';
+
+  const confidenceColor = { high: 'var(--green)', medium: 'var(--orange)', low: 'var(--red)' };
+  const confColor = confidenceColor[diag.confidence] || 'var(--text-dim)';
+
+  let html = `<div style="margin-bottom:16px">
+    <h3 style="margin-bottom:8px;font-size:16px">Summary</h3>
+    <p>${escapeHtml(diag.summary)}</p>
+  </div>`;
+
+  if (diag.timeline && diag.timeline.length > 0) {
+    html += `<div style="margin-bottom:16px">
+      <h3 style="margin-bottom:8px;font-size:16px">Timeline</h3>
+      <div style="font-family:'SF Mono',monospace;font-size:12px;background:var(--bg);padding:12px;border-radius:6px;max-height:200px;overflow-y:auto">`;
+    for (const evt of diag.timeline) {
+      html += `<div style="margin-bottom:4px">
+        <span style="color:var(--text-dim)">${escapeHtml(evt.timestamp || '')}</span>
+        <span style="color:var(--purple);margin:0 6px">[${escapeHtml(evt.container || '')}]</span>
+        <span>${escapeHtml(evt.event || '')}</span>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  html += `<div style="margin-bottom:16px">
+    <h3 style="margin-bottom:8px;font-size:16px">Root Cause</h3>
+    <p style="background:var(--bg);padding:12px;border-radius:6px;border-left:3px solid var(--red);white-space:pre-wrap">${escapeHtml(diag.root_cause)}</p>
+  </div>`;
+
+  if (diag.affected_components && diag.affected_components.length > 0) {
+    html += `<div style="margin-bottom:16px">
+      <h3 style="margin-bottom:8px;font-size:16px">Affected Components</h3>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">`;
+    for (const comp of diag.affected_components) {
+      html += `<span style="background:var(--bg);padding:4px 10px;border-radius:4px;font-size:12px;border:1px solid var(--border)">${escapeHtml(comp)}</span>`;
+    }
+    html += `</div></div>`;
+  }
+
+  if (diag.recommendation) {
+    html += `<div style="margin-bottom:16px">
+      <h3 style="margin-bottom:8px;font-size:16px">Recommendation</h3>
+      <p style="background:var(--bg);padding:12px;border-radius:6px;border-left:3px solid var(--green);white-space:pre-wrap">${escapeHtml(diag.recommendation)}</p>
+    </div>`;
+  }
+
+  if (diag.explanation) {
+    html += `<div style="margin-bottom:16px">
+      <h3 style="margin-bottom:8px;font-size:16px">Detailed Explanation</h3>
+      <p style="white-space:pre-wrap">${escapeHtml(diag.explanation)}</p>
+    </div>`;
+  }
+
+  html += `<div style="text-align:right;font-size:13px">
+    Confidence: <span style="color:${confColor};font-weight:600">${escapeHtml(diag.confidence)}</span>
+  </div>`;
+
+  result.innerHTML = html;
+}
+
+function closeInvestigationV2() {
+  if (inv2Ws) {
+    inv2Ws.close();
+    inv2Ws = null;
+  }
+  document.getElementById('inv2-overlay').classList.remove('active');
 }
 
 // --- Topology ---

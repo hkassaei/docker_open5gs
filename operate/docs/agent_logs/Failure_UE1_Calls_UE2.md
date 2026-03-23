@@ -54,7 +54,7 @@ Confidence: High
 
 Investigation complete · 200,108 tokens # Is this 200K token really correct give that the agent ran for about 2 minutes.
 
-## Outcome
+## Evaluation
 
 This was a very poor diagnosis of the situation. The details can be found in 'postmortem_ue1_calls_ue2_failure.md'. The agent scored 10 out of 100.
 
@@ -120,7 +120,7 @@ Confidence: High
 Investigation complete · 159,386 tokens were consumed and took around 1.5 minutes.
 
 
-## Score
+## Evaluation
 
 There was dramatic improvement.
 
