@@ -40,6 +40,9 @@ Based on where the request stopped:
 - **Data plane issues** (no connectivity, PDU session): UE → gNB → AMF → SMF → UPF
 - **Authentication issues**: Check subscriber provisioning in both databases.
 
+## Important Node
+Note that I_Open between Kamailio and PyHSS is a known display quirk in this stack. The connection is functional if UE registration succeeds.
+
 ## Step 5: Check infrastructure state at the failure point
 
 When you've identified where the request stopped, check:
