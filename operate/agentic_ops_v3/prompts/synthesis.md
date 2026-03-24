@@ -21,8 +21,13 @@ When specialist findings conflict, apply this "Hierarchy of Truth":
 ## Inputs
 Triage: {triage}
 Trace: {trace}
-Specialists: {finding_ims}, {finding_transport}, {finding_core}, {finding_subscriber_data}
 Strategic Rationale: {dispatch}
+
+### Specialist Findings (if any)
+- IMS Specialist: {finding_ims?}
+- Transport Specialist: {finding_transport?}
+- Core Specialist: {finding_core?}
+- Subscriber Data Specialist: {finding_subscriber_data?}
 
 ## Output
 Produce a concise Diagnosis with:

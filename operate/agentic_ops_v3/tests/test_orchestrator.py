@@ -57,7 +57,7 @@ class TestAgentConstruction:
         agent = create_tracer_agent()
         assert agent.name == "EndToEndTracer"
         assert agent.output_key == "trace"
-        assert "{triage}" in agent.instruction
+        assert "{triage" in agent.instruction  # {triage} or {triage?}
 
     def test_dispatcher_agent(self):
         from agentic_ops_v3.agents.dispatcher import create_dispatch_agent
@@ -77,8 +77,8 @@ class TestAgentConstruction:
         for factory in [create_ims_specialist, create_transport_specialist,
                         create_core_specialist, create_subscriber_data_specialist]:
             agent = factory()
-            assert "{triage}" in agent.instruction, f"{agent.name} missing {{triage}}"
-            assert "{trace}" in agent.instruction, f"{agent.name} missing {{trace}}"
+            assert "{triage" in agent.instruction, f"{agent.name} missing triage placeholder"
+            assert "{trace" in agent.instruction, f"{agent.name} missing trace placeholder"
 
     def test_synthesis_has_all_placeholders(self):
         from agentic_ops_v3.agents.synthesis import create_synthesis_agent

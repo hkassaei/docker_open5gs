@@ -273,6 +273,16 @@ async def investigate(question: str, on_event=None) -> dict:
 
     # Phase 2b: Dynamic specialist selection
     selected = _parse_dispatch_output(state.get("dispatch", ""))
+
+    # MANDATORY: Always include transport. This rule is enforced in code because
+    # no amount of prompt engineering managed to get the LLM to reliably include
+    # the transport specialist in the dispatch chain. The LLM fixates on
+    # application-layer signals (Diameter I_Open, GTP=0) and skips transport,
+    # which is the only agent that can detect the udp_mtu_try_proto mismatch.
+    # Transport costs ~5K tokens and 2 tool calls — cheap insurance.
+    if "transport" not in selected:
+        selected.append("transport")
+
     log.info("Dispatching specialists: %s", selected)
 
     specialist_agents = []

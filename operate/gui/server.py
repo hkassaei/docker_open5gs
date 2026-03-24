@@ -387,6 +387,9 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
         # Import message part types for isinstance checks
         from pydantic_ai.messages import ToolCallPart, TextPart, ToolReturnPart
 
+        # Track tool calls for the agent log
+        tool_call_log: list[dict] = []
+
         # Run the agent with streaming via iter()
         # agent.iter() yields graph nodes: UserPromptNode, ModelRequestNode,
         # CallToolsNode, End. We inspect each node's data to extract events.
@@ -401,6 +404,10 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
                     # CallToolsNode contains the model's response with tool calls and/or text
                     for part in getattr(node, "model_response", _empty_resp).parts:
                         if isinstance(part, ToolCallPart):
+                            tool_call_log.append({
+                                "name": part.tool_name,
+                                "args": str(part.args)[:200],
+                            })
                             await _ws_send(ws, {
                                 "type": "tool_call",
                                 "name": part.tool_name,
@@ -418,6 +425,11 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
                         if isinstance(part, ToolReturnPart):
                             content = str(part.content)
                             preview = content[:200] + "..." if len(content) > 200 else content
+                            # Attach result size to last matching tool call
+                            for tc in reversed(tool_call_log):
+                                if tc["name"] == part.tool_name and "result_size" not in tc:
+                                    tc["result_size"] = len(content)
+                                    break
                             await _ws_send(ws, {
                                 "type": "tool_result",
                                 "name": part.tool_name,
@@ -444,6 +456,9 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
                 "type": "usage",
                 "total_tokens": usage.total_tokens if usage else 0,
             })
+
+            # Persist agent log
+            _persist_v1_run(question, diag, usage, tool_call_log)
         else:
             await _ws_send(ws, {
                 "type": "error",
@@ -456,6 +471,46 @@ async def handle_investigate(request: web.Request) -> web.WebSocketResponse:
 
     await ws.close()
     return ws
+
+
+def _persist_v1_run(question: str, diag, usage, tool_call_log: list[dict]) -> None:
+    """Save v1.5 single-agent investigation result to docs/agent_logs/."""
+    try:
+        import json as _json
+        from datetime import datetime as _dt
+
+        logs_dir = REPO_ROOT / "operate" / "agentic_ops" / "docs" / "agent_logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        result = {
+            "version": "v1.5",
+            "question": question,
+            "diagnosis": {
+                "summary": diag.summary,
+                "timeline": [e.model_dump() for e in diag.timeline],
+                "root_cause": diag.root_cause,
+                "affected_components": diag.affected_components,
+                "recommendation": diag.recommendation,
+                "confidence": diag.confidence,
+                "explanation": diag.explanation,
+            },
+            "token_usage": {
+                "total_tokens": usage.total_tokens if usage else 0,
+                "input_tokens": getattr(usage, "input_tokens", 0) if usage else 0,
+                "output_tokens": getattr(usage, "output_tokens", 0) if usage else 0,
+                "requests": getattr(usage, "requests", 0) if usage else 0,
+                "tool_calls_count": getattr(usage, "tool_calls", 0) if usage else 0,
+            },
+            "tool_calls": tool_call_log,
+        }
+
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        path = logs_dir / f"run_{ts}.json"
+        with open(path, "w") as f:
+            _json.dump(result, f, indent=2, default=str)
+        log.info("v1.5 trace persisted to %s", path)
+    except Exception:
+        log.warning("Failed to persist v1.5 trace", exc_info=True)
 
 
 async def handle_investigate_v2(request: web.Request) -> web.WebSocketResponse:

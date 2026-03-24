@@ -1,6 +1,6 @@
 ## Context
-Triage: {triage}
-Trace: {trace}
+Triage: {triage?}
+Trace: {trace?}
 
 ---
 
