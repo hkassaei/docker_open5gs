@@ -1,0 +1,462 @@
+{
+  "schema_version": "1.0",
+  "episode_id": "ep_20260318_202706_test_multi_fault",
+  "timestamp": "2026-03-18T20:27:07.190213+00:00",
+  "duration_seconds": 0.939704,
+  "scenario": {
+    "name": "Test Multi Fault",
+    "description": "Pause DNS + latency on DNS",
+    "category": "compound",
+    "blast_radius": "single_nf",
+    "faults": [
+      {
+        "fault_type": "container_pause",
+        "target": "dns",
+        "params": {},
+        "ttl_seconds": 60
+      },
+      {
+        "fault_type": "network_latency",
+        "target": "rtpengine",
+        "params": {
+          "delay_ms": 100
+        },
+        "ttl_seconds": 60
+      }
+    ],
+    "expected_symptoms": [],
+    "escalation": false,
+    "challenge_mode": false,
+    "observation_window_seconds": 10,
+    "ttl_seconds": 120
+  },
+  "baseline": {
+    "timestamp": "2026-03-18T20:27:07.190213+00:00",
+    "stack_phase": "ready",
+    "container_status": {
+      "mongo": "running",
+      "nrf": "running",
+      "scp": "running",
+      "ausf": "running",
+      "udr": "running",
+      "udm": "running",
+      "amf": "running",
+      "smf": "running",
+      "upf": "running",
+      "pcf": "running",
+      "dns": "running",
+      "mysql": "running",
+      "pyhss": "running",
+      "icscf": "running",
+      "scscf": "running",
+      "pcscf": "running",
+      "rtpengine": "running",
+      "nr_gnb": "running",
+      "e2e_ue1": "running",
+      "e2e_ue2": "running"
+    },
+    "metrics": {
+      "amf": {
+        "metrics": {
+          "amf_session": 0.0,
+          "ran_ue": 2.0,
+          "gnb": 1.0
+        },
+        "badge": "2 UE",
+        "source": "prometheus"
+      },
+      "smf": {
+        "metrics": {
+          "fivegs_smffunction_sm_sessionnbr": 0.0,
+          "ues_active": 0.0,
+          "bearers_active": 0.0,
+          "pfcp_sessions_active": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "upf": {
+        "metrics": {
+          "fivegs_upffunction_upf_sessionnbr": 0.0,
+          "fivegs_ep_n3_gtp_indatapktn3upf": 0.0,
+          "fivegs_ep_n3_gtp_outdatapktn3upf": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "pcf": {
+        "metrics": {
+          "pa_sessions": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "pcscf": {
+        "metrics": {
+          "core:rcv_requests_bye": 0.0,
+          "core:rcv_requests_invite": 0.0,
+          "core:rcv_requests_options": 6475.0,
+          "core:rcv_requests_register": 16.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 0.0,
+          "httpclient:connections": 0.0,
+          "httpclient:connfail": 6476.0,
+          "httpclient:connok": 0.0,
+          "ims_usrloc_pcscf:expired_contacts": 4.0,
+          "ims_usrloc_pcscf:registered_contacts": 0.0,
+          "ims_usrloc_pcscf:registered_impus": 4.0,
+          "registrar:accepted_regs": 0.0,
+          "registrar:default_expire": 3600.0,
+          "registrar:default_expires_range": 0.0,
+          "registrar:expires_range": 0.0,
+          "registrar:max_contacts": 0.0,
+          "registrar:max_expires": 0.0,
+          "registrar:rejected_regs": 0.0,
+          "script:register_failed": 0.0,
+          "script:register_success": 8.0,
+          "script:register_time": 3255.0,
+          "sl:1xx_replies": 16.0,
+          "sl:200_replies": 0.0,
+          "sl:4xx_replies": 0.0,
+          "sl:5xx_replies": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "",
+        "source": "kamcmd"
+      },
+      "icscf": {
+        "metrics": {
+          "cdp:average_response_time": 85.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 39.0,
+          "cdp:replies_response_time": 3347.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 11.0,
+          "core:rcv_requests_register": 56.0,
+          "ims_icscf:lir_avg_response_time": 43.0,
+          "ims_icscf:lir_replies_received": 11.0,
+          "ims_icscf:lir_replies_response_time": 477.0,
+          "ims_icscf:lir_timeouts": 0.0,
+          "ims_icscf:uar_avg_response_time": 102.0,
+          "ims_icscf:uar_replies_received": 28.0,
+          "ims_icscf:uar_replies_response_time": 2870.0,
+          "ims_icscf:uar_timeouts": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "56 req",
+        "source": "kamcmd"
+      },
+      "scscf": {
+        "metrics": {
+          "cdp:average_response_time": 115.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 16.0,
+          "cdp:replies_response_time": 1849.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 0.0,
+          "core:rcv_requests_register": 16.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 0.0,
+          "ims_auth:mar_avg_response_time": 106.0,
+          "ims_auth:mar_replies_received": 8.0,
+          "ims_auth:mar_replies_response_time": 852.0,
+          "ims_auth:mar_timeouts": 0.0,
+          "ims_registrar_scscf:accepted_regs": 8.0,
+          "ims_registrar_scscf:default_expire": 3600.0,
+          "ims_registrar_scscf:default_expires_range": 0.0,
+          "ims_registrar_scscf:max_contacts": 5.0,
+          "ims_registrar_scscf:max_expires": 3600.0,
+          "ims_registrar_scscf:notifies_in_q": 0.0,
+          "ims_registrar_scscf:rejected_regs": 0.0,
+          "ims_registrar_scscf:sar_avg_response_time": 124.0,
+          "ims_registrar_scscf:sar_replies_received": 8.0,
+          "ims_registrar_scscf:sar_replies_response_time": 997.0,
+          "ims_registrar_scscf:sar_timeouts": 0.0,
+          "ims_usrloc_scscf:active_contacts": 0.0,
+          "ims_usrloc_scscf:active_impus": 0.0,
+          "ims_usrloc_scscf:active_subscriptions": 0.0,
+          "ims_usrloc_scscf:contact_collisions": 1.0,
+          "ims_usrloc_scscf:impu_collisions": 1.0,
+          "ims_usrloc_scscf:subscription_collisions": 1.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "8 regs",
+        "source": "kamcmd"
+      },
+      "pyhss": {
+        "metrics": {
+          "ims_subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "api"
+      },
+      "mongo": {
+        "metrics": {
+          "subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "mongosh"
+      }
+    }
+  },
+  "faults": [
+    {
+      "fault_id": "f_7d67ff9b",
+      "fault_type": "container_pause",
+      "target": "dns",
+      "params": {},
+      "mechanism": "docker pause dns",
+      "heal_command": "docker unpause dns",
+      "injected_at": "2026-03-18T20:27:07.190501+00:00",
+      "ttl_seconds": 60,
+      "expires_at": "2026-03-18T20:28:07.190501+00:00",
+      "success": true,
+      "verified": true,
+      "verification_result": "Expected 'paused', got 'paused'"
+    },
+    {
+      "fault_id": "f_b563a4e4",
+      "fault_type": "network_latency",
+      "target": "rtpengine",
+      "params": {
+        "delay_ms": 100
+      },
+      "mechanism": "sudo nsenter -t 307897 -n tc qdisc add dev eth0 root netem delay 100ms",
+      "heal_command": "sudo nsenter -t 307897 -n tc qdisc del dev eth0 root",
+      "injected_at": "2026-03-18T20:27:07.356924+00:00",
+      "ttl_seconds": 60,
+      "expires_at": "2026-03-18T20:28:07.356924+00:00",
+      "success": true,
+      "verified": true,
+      "verification_result": "qdisc netem 8040: root refcnt 9 limit 1000 delay 100ms"
+    }
+  ],
+  "observations": [
+    {
+      "iteration": 1,
+      "timestamp": "2026-03-18T20:27:07.456778+00:00",
+      "elapsed_seconds": 0.266565,
+      "metrics_delta": {},
+      "log_samples": {
+        "pcscf": [
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34571 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34578 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34587 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34582 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34582 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34576 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34574 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34581 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34575 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(47) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (65000 ms / 1040 ticks our time .-> 64587 ms / 1033 ticks real time)"
+        ],
+        "icscf": [
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34577 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34580 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34583 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34582 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34572 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34577 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34569 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (35000 ms / 560 ticks our time .-> 34565 ms / 553 ticks real time)",
+          "\u001b[0;39;49m\u001b[0;35;49m 6(39) WARNING: <core> [core/timer.c:410]: adjust_ticks(): our timer runs faster than real-time (65000 ms / 1040 ticks our time .-> 64587 ms / 1033 ticks real time)"
+        ],
+        "nr_gnb": [
+          "[2026-03-18 10:07:13.925] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:07:26.208] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:07:39.208] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:07:51.209] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:08:04.513] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:08:18.514] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:08:29.814] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:08:43.815] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:08:56.118] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:09:09.118] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:09:23.118] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:09:36.282] [gtp] [\u001b[31m\u001b[1merror\u001b[m] Uplink data failure, PDU session not found. UE[21] PSI[2]",
+          "[2026-03-18 10:13:18.944] [rls] [\u001b[36mdebug\u001b[m] UE[21] signal lost",
+          "[2026-03-18 10:22:36.228] [rls] [\u001b[36mdebug\u001b[m] UE[21] signal lost",
+          "[2026-03-18 10:33:18.750] [rls] [\u001b[36mdebug\u001b[m] UE[24] signal lost",
+          "[2026-03-18 12:25:58.352] [rls] [\u001b[36mdebug\u001b[m] UE[24] signal lost",
+          "[2026-03-18 14:25:38.436] [rls] [\u001b[36mdebug\u001b[m] UE[24] signal lost"
+        ],
+        "e2e_ue1": [
+          "16:26:18.785            pjsua_acc.c  ...SIP registration failed, status=408 (Request Timeout)"
+        ],
+        "e2e_ue2": [
+          "16:25:48.401            pjsua_acc.c  ...SIP registration failed, status=408 (Request Timeout)"
+        ]
+      },
+      "symptoms_detected": true,
+      "escalation_level": 0
+    }
+  ],
+  "resolution": {
+    "healed_at": "2026-03-18T20:27:08.129917+00:00",
+    "heal_method": "scheduled",
+    "post_heal_metrics": {
+      "amf": {
+        "metrics": {
+          "amf_session": 0.0,
+          "ran_ue": 2.0,
+          "gnb": 1.0
+        },
+        "badge": "2 UE",
+        "source": "prometheus"
+      },
+      "smf": {
+        "metrics": {
+          "fivegs_smffunction_sm_sessionnbr": 0.0,
+          "ues_active": 0.0,
+          "bearers_active": 0.0,
+          "pfcp_sessions_active": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "upf": {
+        "metrics": {
+          "fivegs_upffunction_upf_sessionnbr": 0.0,
+          "fivegs_ep_n3_gtp_indatapktn3upf": 0.0,
+          "fivegs_ep_n3_gtp_outdatapktn3upf": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "pcf": {
+        "metrics": {
+          "pa_sessions": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "pcscf": {
+        "metrics": {
+          "core:rcv_requests_bye": 0.0,
+          "core:rcv_requests_invite": 0.0,
+          "core:rcv_requests_options": 6475.0,
+          "core:rcv_requests_register": 16.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 0.0,
+          "httpclient:connections": 0.0,
+          "httpclient:connfail": 6476.0,
+          "httpclient:connok": 0.0,
+          "ims_usrloc_pcscf:expired_contacts": 4.0,
+          "ims_usrloc_pcscf:registered_contacts": 0.0,
+          "ims_usrloc_pcscf:registered_impus": 4.0,
+          "registrar:accepted_regs": 0.0,
+          "registrar:default_expire": 3600.0,
+          "registrar:default_expires_range": 0.0,
+          "registrar:expires_range": 0.0,
+          "registrar:max_contacts": 0.0,
+          "registrar:max_expires": 0.0,
+          "registrar:rejected_regs": 0.0,
+          "script:register_failed": 0.0,
+          "script:register_success": 8.0,
+          "script:register_time": 3255.0,
+          "sl:1xx_replies": 16.0,
+          "sl:200_replies": 0.0,
+          "sl:4xx_replies": 0.0,
+          "sl:5xx_replies": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "",
+        "source": "kamcmd"
+      },
+      "icscf": {
+        "metrics": {
+          "cdp:average_response_time": 85.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 39.0,
+          "cdp:replies_response_time": 3347.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 11.0,
+          "core:rcv_requests_register": 56.0,
+          "ims_icscf:lir_avg_response_time": 43.0,
+          "ims_icscf:lir_replies_received": 11.0,
+          "ims_icscf:lir_replies_response_time": 477.0,
+          "ims_icscf:lir_timeouts": 0.0,
+          "ims_icscf:uar_avg_response_time": 102.0,
+          "ims_icscf:uar_replies_received": 28.0,
+          "ims_icscf:uar_replies_response_time": 2870.0,
+          "ims_icscf:uar_timeouts": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "56 req",
+        "source": "kamcmd"
+      },
+      "scscf": {
+        "metrics": {
+          "cdp:average_response_time": 115.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 16.0,
+          "cdp:replies_response_time": 1849.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 0.0,
+          "core:rcv_requests_register": 16.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 0.0,
+          "ims_auth:mar_avg_response_time": 106.0,
+          "ims_auth:mar_replies_received": 8.0,
+          "ims_auth:mar_replies_response_time": 852.0,
+          "ims_auth:mar_timeouts": 0.0,
+          "ims_registrar_scscf:accepted_regs": 8.0,
+          "ims_registrar_scscf:default_expire": 3600.0,
+          "ims_registrar_scscf:default_expires_range": 0.0,
+          "ims_registrar_scscf:max_contacts": 5.0,
+          "ims_registrar_scscf:max_expires": 3600.0,
+          "ims_registrar_scscf:notifies_in_q": 0.0,
+          "ims_registrar_scscf:rejected_regs": 0.0,
+          "ims_registrar_scscf:sar_avg_response_time": 124.0,
+          "ims_registrar_scscf:sar_replies_received": 8.0,
+          "ims_registrar_scscf:sar_replies_response_time": 997.0,
+          "ims_registrar_scscf:sar_timeouts": 0.0,
+          "ims_usrloc_scscf:active_contacts": 0.0,
+          "ims_usrloc_scscf:active_impus": 0.0,
+          "ims_usrloc_scscf:active_subscriptions": 0.0,
+          "ims_usrloc_scscf:contact_collisions": 1.0,
+          "ims_usrloc_scscf:impu_collisions": 1.0,
+          "ims_usrloc_scscf:subscription_collisions": 1.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "8 regs",
+        "source": "kamcmd"
+      },
+      "pyhss": {
+        "metrics": {
+          "ims_subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "api"
+      },
+      "mongo": {
+        "metrics": {
+          "subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "mongosh"
+      }
+    },
+    "recovery_time_seconds": 0.939416,
+    "faults_healed": 2
+  },
+  "rca_label": {
+    "root_cause": "Pause DNS + latency on DNS",
+    "affected_components": [
+      "dns",
+      "rtpengine"
+    ],
+    "severity": "degraded",
+    "failure_domain": "ims_signaling",
+    "protocol_impact": "multiple"
+  },
+  "challenge_result": null
+}
