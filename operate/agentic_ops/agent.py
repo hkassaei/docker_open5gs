@@ -209,6 +209,40 @@ async def _tool_check_process_listeners(
     return await t.check_process_listeners(ctx.deps, container)
 
 
+async def _tool_check_tc_rules(
+    ctx: RunContext[AgentDeps],
+    container: str,
+) -> str:
+    """Check for active traffic control (tc) rules on a container's network interface.
+
+    CRITICAL: Call this FIRST on any container showing timeouts or slow
+    responses. Detects injected latency (netem delay), packet loss (netem loss),
+    bandwidth limits (tbf), or corruption. In a healthy Docker network, RTT is
+    <1ms — if netem rules are present, they explain all timeout behavior.
+
+    Args:
+        container: Container name (e.g. 'pcscf', 'upf', 'scscf').
+    """
+    return await t.check_tc_rules(ctx.deps, container)
+
+
+async def _tool_measure_rtt(
+    ctx: RunContext[AgentDeps],
+    container: str,
+    target_ip: str,
+) -> str:
+    """Measure round-trip time (RTT) from a container to a target IP.
+
+    Normal Docker bridge RTT is <1ms. Elevated RTT (>10ms) indicates injected
+    latency or congestion. Use to confirm tc netem faults or measure impact.
+
+    Args:
+        container: Source container name (e.g. 'pcscf', 'icscf').
+        target_ip: Target IP address to ping (e.g. '172.22.0.19').
+    """
+    return await t.measure_rtt(ctx.deps, container, target_ip)
+
+
 # ---------------------------------------------------------------------------
 # Agent factory
 # ---------------------------------------------------------------------------
@@ -244,6 +278,8 @@ def create_agent(model: str | None = None) -> Agent[AgentDeps, Diagnosis]:
             Tool(_tool_run_kamcmd, takes_ctx=True),
             Tool(_tool_read_running_config, takes_ctx=True),
             Tool(_tool_check_process_listeners, takes_ctx=True),
+            Tool(_tool_check_tc_rules, takes_ctx=True),
+            Tool(_tool_measure_rtt, takes_ctx=True),
         ],
         retries=2,
     )

@@ -13,6 +13,15 @@ Follow this methodology for every investigation. These rules are non-negotiable.
 - **The metrics snapshot is your radiograph.** It gives you a 3-second health overview of the entire stack: GTP packet counts, session counts, UE counts, Kamailio transaction stats, registered contacts, subscriber counts. Read the metrics BEFORE touching any log files. If a metric is zero when it should be nonzero (e.g., GTP packets = 0 but sessions > 0), that's a major anomaly — investigate it immediately.
 - For targeted metric queries, use `query_prometheus` with specific PromQL (e.g., `fivegs_ep_n3_gtp_indatapktn3upf` to check data plane health).
 
+## Step 1b: Rule out network-layer faults before investigating application issues
+
+When you see timeout symptoms (SIP 408, transaction timeouts, Diameter timeouts, connection failures), these can be caused by either application-layer issues OR network-layer issues. Network-layer faults are invisible in application logs but produce identical symptoms. Always rule out the network layer first.
+
+- `check_tc_rules(container)` — inspect the network interface for any queueing or shaping anomalies
+- `measure_rtt(container, target_ip)` — measure actual round-trip time between containers
+
+Investigate bottom-up: network first, then application. A network-layer root cause makes all application-layer symptoms downstream consequences, not independent problems.
+
 ## Step 2: Check both ends of the affected flow
 
 **For call failures:** Check BOTH the caller (UE1) AND the callee (UE2) logs.

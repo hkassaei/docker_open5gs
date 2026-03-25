@@ -73,8 +73,13 @@ RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg -
     apt-get update && apt install nodejs -y
 
 # Get open5gs code and install
+# Patch: re-enable UPF GTP data plane metrics (disabled upstream in PR #2219 / Issue #2210
+# due to malloc contention at multi-Gbps rates — irrelevant for our lab traffic levels).
+# See: operate/docs/observability_updates/upf-gtp-metrics-fix.md
 RUN git clone --recursive https://github.com/open5gs/open5gs && cd open5gs && \
-    git checkout 782a97efe9e3acb1251e318bd3738ced4044dac8 && meson build --prefix=`pwd`/install && \
+    git checkout 782a97efe9e3acb1251e318bd3738ced4044dac8 && \
+    sed -i '/Metrics reduce data plane performance/,/^#endif/{s/^#if 0/#if 1/}' src/upf/gtp-path.c && \
+    meson build --prefix=`pwd`/install && \
     ninja -C build && cd build && ninja install && \
     mkdir -p /open5gs/install/include
 

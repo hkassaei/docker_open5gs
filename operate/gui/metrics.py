@@ -129,6 +129,10 @@ class MetricsCollector:
             "fivegs_ep_n3_gtp_outdatapktn3upf",
             # PCF
             "fivegs_pcffunction_pa_sessionnbr",
+            "fivegs_pcffunction_pa_policyamassoreq",
+            "fivegs_pcffunction_pa_policyamassosucc",
+            "fivegs_pcffunction_pa_policysmassoreq",
+            "fivegs_pcffunction_pa_policysmassosucc",
         ]
 
         out: dict[str, dict] = {}
@@ -186,11 +190,20 @@ class MetricsCollector:
                     }
 
                 # ---- PCF ----
-                v = r.get("fivegs_pcffunction_pa_sessionnbr")
-                if v is not None:
+                pcf_keys = [
+                    "fivegs_pcffunction_pa_sessionnbr",
+                    "fivegs_pcffunction_pa_policyamassoreq",
+                    "fivegs_pcffunction_pa_policyamassosucc",
+                    "fivegs_pcffunction_pa_policysmassoreq",
+                    "fivegs_pcffunction_pa_policysmassosucc",
+                ]
+                pcf_m = {k: v for k in pcf_keys
+                         if (v := r.get(k)) is not None}
+                if pcf_m:
+                    sess = pcf_m.get("fivegs_pcffunction_pa_sessionnbr", 0)
                     out["pcf"] = {
-                        "metrics": {"pa_sessions": v},
-                        "badge": f"{int(v)} PA" if v else "",
+                        "metrics": pcf_m,
+                        "badge": f"{int(sess)} PA" if sess else "",
                         "source": "prometheus",
                     }
 
