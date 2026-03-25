@@ -199,3 +199,30 @@ async def check_process_listeners(container: str) -> str:
         container: Container name (e.g. 'e2e_ue1', 'pcscf', 'scscf').
     """
     return await _t.check_process_listeners(_get_deps(), container)
+
+
+async def check_tc_rules(container: str) -> str:
+    """Check for active traffic control (tc) rules on a container's network interface.
+
+    CRITICAL: Call this FIRST on any container showing timeouts. Detects
+    injected latency (netem delay), packet loss (netem loss), bandwidth
+    limits (tbf), or corruption. If netem/tbf rules are present, they are
+    the root cause — do not investigate application-layer issues.
+
+    Args:
+        container: Container name (e.g. 'pcscf', 'upf', 'scscf').
+    """
+    return await _t.check_tc_rules(_get_deps(), container)
+
+
+async def measure_rtt(container: str, target_ip: str) -> str:
+    """Measure round-trip time (RTT) from a container to a target IP.
+
+    Normal Docker bridge RTT is <1ms. Elevated RTT (>10ms) indicates
+    injected latency or congestion. Use to confirm tc netem faults.
+
+    Args:
+        container: Source container name (e.g. 'pcscf', 'icscf').
+        target_ip: Target IP address to ping (e.g. '172.22.0.19').
+    """
+    return await _t.measure_rtt(_get_deps(), container, target_ip)

@@ -1,0 +1,511 @@
+{
+  "schema_version": "1.0",
+  "episode_id": "ep_20260325_150246_p_cscf_latency",
+  "timestamp": "2026-03-25T15:02:47.261578+00:00",
+  "duration_seconds": 109.423628,
+  "scenario": {
+    "name": "P-CSCF Latency",
+    "description": "Inject 500ms latency on the P-CSCF (SIP edge proxy). SIP T1 timer is 500ms, so REGISTER transactions will start timing out. Tests IMS resilience to WAN-like latency on the signaling path.",
+    "category": "network",
+    "blast_radius": "single_nf",
+    "faults": [
+      {
+        "fault_type": "network_latency",
+        "target": "pcscf",
+        "params": {
+          "delay_ms": 500,
+          "jitter_ms": 50
+        },
+        "ttl_seconds": 90
+      }
+    ],
+    "expected_symptoms": [
+      "SIP REGISTER 408 Request Timeout",
+      "Kamailio tm transaction timeouts",
+      "IMS registration failures at UEs"
+    ],
+    "escalation": true,
+    "challenge_mode": true,
+    "observation_window_seconds": 30,
+    "ttl_seconds": 90
+  },
+  "baseline": {
+    "timestamp": "2026-03-25T15:02:47.261578+00:00",
+    "stack_phase": "ready",
+    "container_status": {
+      "mongo": "running",
+      "nrf": "running",
+      "scp": "running",
+      "ausf": "running",
+      "udr": "running",
+      "udm": "running",
+      "amf": "running",
+      "smf": "running",
+      "upf": "running",
+      "pcf": "running",
+      "dns": "running",
+      "mysql": "running",
+      "pyhss": "running",
+      "icscf": "running",
+      "scscf": "running",
+      "pcscf": "running",
+      "rtpengine": "running",
+      "nr_gnb": "running",
+      "e2e_ue1": "running",
+      "e2e_ue2": "running"
+    },
+    "metrics": {
+      "amf": {
+        "metrics": {
+          "amf_session": 4.0,
+          "ran_ue": 2.0,
+          "gnb": 1.0
+        },
+        "badge": "2 UE",
+        "source": "prometheus"
+      },
+      "smf": {
+        "metrics": {
+          "fivegs_smffunction_sm_sessionnbr": 4.0,
+          "ues_active": 2.0,
+          "bearers_active": 4.0,
+          "pfcp_sessions_active": 4.0
+        },
+        "badge": "4 PDU",
+        "source": "prometheus"
+      },
+      "upf": {
+        "metrics": {
+          "fivegs_upffunction_upf_sessionnbr": 4.0,
+          "fivegs_ep_n3_gtp_indatapktn3upf": 11211.0,
+          "fivegs_ep_n3_gtp_outdatapktn3upf": 7611.0
+        },
+        "badge": "4 sess",
+        "source": "prometheus"
+      },
+      "pcf": {
+        "metrics": {
+          "fivegs_pcffunction_pa_sessionnbr": 4.0,
+          "fivegs_pcffunction_pa_policyamassoreq": 2.0,
+          "fivegs_pcffunction_pa_policyamassosucc": 2.0,
+          "fivegs_pcffunction_pa_policysmassoreq": 4.0,
+          "fivegs_pcffunction_pa_policysmassosucc": 4.0
+        },
+        "badge": "4 PA",
+        "source": "prometheus"
+      },
+      "pcscf": {
+        "metrics": {
+          "core:rcv_requests_bye": 2.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_options": 6375.0,
+          "core:rcv_requests_register": 32.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 2.0,
+          "httpclient:connections": 0.0,
+          "httpclient:connfail": 6380.0,
+          "httpclient:connok": 2.0,
+          "ims_usrloc_pcscf:expired_contacts": 6.0,
+          "ims_usrloc_pcscf:registered_contacts": 0.0,
+          "ims_usrloc_pcscf:registered_impus": 6.0,
+          "registrar:accepted_regs": 0.0,
+          "registrar:default_expire": 3600.0,
+          "registrar:default_expires_range": 0.0,
+          "registrar:expires_range": 0.0,
+          "registrar:max_contacts": 0.0,
+          "registrar:max_expires": 0.0,
+          "registrar:rejected_regs": 0.0,
+          "script:register_failed": 0.0,
+          "script:register_success": 16.0,
+          "script:register_time": 4991.0,
+          "sl:1xx_replies": 34.0,
+          "sl:200_replies": 0.0,
+          "sl:4xx_replies": 0.0,
+          "sl:5xx_replies": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "",
+        "source": "kamcmd"
+      },
+      "icscf": {
+        "metrics": {
+          "cdp:average_response_time": 76.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 17.0,
+          "cdp:replies_response_time": 1306.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 1.0,
+          "core:rcv_requests_register": 32.0,
+          "ims_icscf:lir_avg_response_time": 54.0,
+          "ims_icscf:lir_replies_received": 1.0,
+          "ims_icscf:lir_replies_response_time": 54.0,
+          "ims_icscf:lir_timeouts": 0.0,
+          "ims_icscf:uar_avg_response_time": 78.0,
+          "ims_icscf:uar_replies_received": 16.0,
+          "ims_icscf:uar_replies_response_time": 1252.0,
+          "ims_icscf:uar_timeouts": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "32 req",
+        "source": "kamcmd"
+      },
+      "scscf": {
+        "metrics": {
+          "cdp:average_response_time": 97.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 32.0,
+          "cdp:replies_response_time": 3116.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_register": 32.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 2.0,
+          "ims_auth:mar_avg_response_time": 95.0,
+          "ims_auth:mar_replies_received": 16.0,
+          "ims_auth:mar_replies_response_time": 1535.0,
+          "ims_auth:mar_timeouts": 0.0,
+          "ims_registrar_scscf:accepted_regs": 16.0,
+          "ims_registrar_scscf:default_expire": 3600.0,
+          "ims_registrar_scscf:default_expires_range": 0.0,
+          "ims_registrar_scscf:max_contacts": 5.0,
+          "ims_registrar_scscf:max_expires": 3600.0,
+          "ims_registrar_scscf:notifies_in_q": 0.0,
+          "ims_registrar_scscf:rejected_regs": 0.0,
+          "ims_registrar_scscf:sar_avg_response_time": 98.0,
+          "ims_registrar_scscf:sar_replies_received": 16.0,
+          "ims_registrar_scscf:sar_replies_response_time": 1581.0,
+          "ims_registrar_scscf:sar_timeouts": 0.0,
+          "ims_usrloc_scscf:active_contacts": 0.0,
+          "ims_usrloc_scscf:active_impus": 0.0,
+          "ims_usrloc_scscf:active_subscriptions": 0.0,
+          "ims_usrloc_scscf:contact_collisions": 1.0,
+          "ims_usrloc_scscf:impu_collisions": 1.0,
+          "ims_usrloc_scscf:subscription_collisions": 1.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "16 regs",
+        "source": "kamcmd"
+      },
+      "pyhss": {
+        "metrics": {
+          "ims_subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "api"
+      },
+      "mongo": {
+        "metrics": {
+          "subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "mongosh"
+      }
+    }
+  },
+  "faults": [
+    {
+      "fault_id": "f_79774f64",
+      "fault_type": "network_latency",
+      "target": "pcscf",
+      "params": {
+        "delay_ms": 500,
+        "jitter_ms": 50
+      },
+      "mechanism": "sudo nsenter -t 224862 -n tc qdisc add dev eth0 root netem delay 500ms 50ms",
+      "heal_command": "sudo nsenter -t 224862 -n tc qdisc del dev eth0 root",
+      "injected_at": "2026-03-25T15:02:47.262058+00:00",
+      "ttl_seconds": 90,
+      "expires_at": "2026-03-25T15:04:17.262058+00:00",
+      "success": true,
+      "verified": true,
+      "verification_result": "qdisc netem 8002: root refcnt 9 limit 1000 delay 500ms  50ms"
+    }
+  ],
+  "observations": [
+    {
+      "iteration": 1,
+      "timestamp": "2026-03-25T15:02:47.382888+00:00",
+      "elapsed_seconds": 0.12131,
+      "metrics_delta": {},
+      "log_samples": {
+        "icscf": [
+          "\u001b[0;39;49m\u001b[0;36;49m19(69) INFO: ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m20(70) INFO: ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m21(71) INFO: ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m22(72) INFO: ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m23(73) INFO: ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m24(74) INFO: ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m 9(59) INFO: {1 41328 REGISTER 3XTNTwFj9xCIs1MxVzLCqD5YTsIhBm6t <null>} ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp"
+        ],
+        "scscf": [
+          "\u001b[0;39;49m\u001b[0;39;49m 5(44) DEBUG: ims_usrloc_scscf [ims_usrloc_scscf_mod.c:500]: timer(): Syncing cache"
+        ],
+        "nr_gnb": [
+          "[2026-03-24 22:23:56.032] [rls] [\u001b[36mdebug\u001b[m] UE[3] signal lost",
+          "[2026-03-24 22:23:57.036] [rls] [\u001b[36mdebug\u001b[m] UE[4] signal lost",
+          "[2026-03-25 03:49:42.859] [rls] [\u001b[36mdebug\u001b[m] UE[5] signal lost",
+          "[2026-03-25 07:33:57.300] [rls] [\u001b[36mdebug\u001b[m] UE[5] signal lost",
+          "[2026-03-25 09:12:27.019] [rls] [\u001b[36mdebug\u001b[m] UE[6] signal lost"
+        ],
+        "e2e_ue1": [
+          "10:58:51.812            pjsua_acc.c  ...SIP registration failed, status=408 (Request Timeout)"
+        ],
+        "e2e_ue2": [
+          "10:59:21.307            pjsua_acc.c  ...SIP registration failed, status=408 (Request Timeout)"
+        ]
+      },
+      "symptoms_detected": true,
+      "escalation_level": 0
+    }
+  ],
+  "resolution": {
+    "healed_at": "2026-03-25T15:04:36.685206+00:00",
+    "heal_method": "scheduled",
+    "post_heal_metrics": {
+      "amf": {
+        "metrics": {
+          "amf_session": 4.0,
+          "ran_ue": 2.0,
+          "gnb": 1.0
+        },
+        "badge": "2 UE",
+        "source": "prometheus"
+      },
+      "smf": {
+        "metrics": {
+          "fivegs_smffunction_sm_sessionnbr": 4.0,
+          "ues_active": 2.0,
+          "bearers_active": 4.0,
+          "pfcp_sessions_active": 4.0
+        },
+        "badge": "4 PDU",
+        "source": "prometheus"
+      },
+      "upf": {
+        "metrics": {
+          "fivegs_upffunction_upf_sessionnbr": 4.0,
+          "fivegs_ep_n3_gtp_indatapktn3upf": 11211.0,
+          "fivegs_ep_n3_gtp_outdatapktn3upf": 7611.0
+        },
+        "badge": "4 sess",
+        "source": "prometheus"
+      },
+      "pcf": {
+        "metrics": {
+          "fivegs_pcffunction_pa_sessionnbr": 4.0,
+          "fivegs_pcffunction_pa_policyamassoreq": 2.0,
+          "fivegs_pcffunction_pa_policyamassosucc": 2.0,
+          "fivegs_pcffunction_pa_policysmassoreq": 4.0,
+          "fivegs_pcffunction_pa_policysmassosucc": 4.0
+        },
+        "badge": "4 PA",
+        "source": "prometheus"
+      },
+      "pcscf": {
+        "metrics": {
+          "core:rcv_requests_bye": 2.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_options": 6394.0,
+          "core:rcv_requests_register": 32.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 2.0,
+          "httpclient:connections": 0.0,
+          "httpclient:connfail": 6399.0,
+          "httpclient:connok": 2.0,
+          "ims_usrloc_pcscf:expired_contacts": 6.0,
+          "ims_usrloc_pcscf:registered_contacts": 0.0,
+          "ims_usrloc_pcscf:registered_impus": 6.0,
+          "registrar:accepted_regs": 0.0,
+          "registrar:default_expire": 3600.0,
+          "registrar:default_expires_range": 0.0,
+          "registrar:expires_range": 0.0,
+          "registrar:max_contacts": 0.0,
+          "registrar:max_expires": 0.0,
+          "registrar:rejected_regs": 0.0,
+          "script:register_failed": 0.0,
+          "script:register_success": 16.0,
+          "script:register_time": 4991.0,
+          "sl:1xx_replies": 34.0,
+          "sl:200_replies": 0.0,
+          "sl:4xx_replies": 0.0,
+          "sl:5xx_replies": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "",
+        "source": "kamcmd"
+      },
+      "icscf": {
+        "metrics": {
+          "cdp:average_response_time": 76.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 17.0,
+          "cdp:replies_response_time": 1306.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 1.0,
+          "core:rcv_requests_register": 32.0,
+          "ims_icscf:lir_avg_response_time": 54.0,
+          "ims_icscf:lir_replies_received": 1.0,
+          "ims_icscf:lir_replies_response_time": 54.0,
+          "ims_icscf:lir_timeouts": 0.0,
+          "ims_icscf:uar_avg_response_time": 78.0,
+          "ims_icscf:uar_replies_received": 16.0,
+          "ims_icscf:uar_replies_response_time": 1252.0,
+          "ims_icscf:uar_timeouts": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "32 req",
+        "source": "kamcmd"
+      },
+      "scscf": {
+        "metrics": {
+          "cdp:average_response_time": 97.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 32.0,
+          "cdp:replies_response_time": 3116.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_register": 32.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 2.0,
+          "ims_auth:mar_avg_response_time": 95.0,
+          "ims_auth:mar_replies_received": 16.0,
+          "ims_auth:mar_replies_response_time": 1535.0,
+          "ims_auth:mar_timeouts": 0.0,
+          "ims_registrar_scscf:accepted_regs": 16.0,
+          "ims_registrar_scscf:default_expire": 3600.0,
+          "ims_registrar_scscf:default_expires_range": 0.0,
+          "ims_registrar_scscf:max_contacts": 5.0,
+          "ims_registrar_scscf:max_expires": 3600.0,
+          "ims_registrar_scscf:notifies_in_q": 0.0,
+          "ims_registrar_scscf:rejected_regs": 0.0,
+          "ims_registrar_scscf:sar_avg_response_time": 98.0,
+          "ims_registrar_scscf:sar_replies_received": 16.0,
+          "ims_registrar_scscf:sar_replies_response_time": 1581.0,
+          "ims_registrar_scscf:sar_timeouts": 0.0,
+          "ims_usrloc_scscf:active_contacts": 0.0,
+          "ims_usrloc_scscf:active_impus": 0.0,
+          "ims_usrloc_scscf:active_subscriptions": 0.0,
+          "ims_usrloc_scscf:contact_collisions": 1.0,
+          "ims_usrloc_scscf:impu_collisions": 1.0,
+          "ims_usrloc_scscf:subscription_collisions": 1.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "16 regs",
+        "source": "kamcmd"
+      },
+      "pyhss": {
+        "metrics": {
+          "ims_subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "api"
+      },
+      "mongo": {
+        "metrics": {
+          "subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "mongosh"
+      }
+    },
+    "recovery_time_seconds": 109.423148,
+    "faults_healed": 0
+  },
+  "rca_label": {
+    "root_cause": "Inject 500ms latency on the P-CSCF (SIP edge proxy). SIP T1 timer is 500ms, so REGISTER transactions will start timing out. Tests IMS resilience to WAN-like latency on the signaling path.",
+    "affected_components": [
+      "pcscf"
+    ],
+    "severity": "degraded",
+    "failure_domain": "ims_signaling",
+    "protocol_impact": "SIP"
+  },
+  "challenge_result": {
+    "rca_agent_model": "v3-adk/eod-sbox-entitlement-server",
+    "diagnosis_summary": "UE registration is failing due to a broken Diameter connection between the I-CSCF and HSS.",
+    "diagnosis_root_cause": "The Diameter peer connection from the I-CSCF to the HSS is stuck in the `I_Open` state, as confirmed by the `kamcmd` query. This indicates an incomplete connection handshake. This prevents the I-CSCF from performing User-Authorization-Request (UAR) lookups, which are mandatory for finding the correct S-CSCF for a registering user. Without a successful HSS lookup, the SIP REGISTER request cannot be forwarded, causing the entire transaction to stall and eventually time out at the UE.",
+    "diagnosis_affected_components": [
+      "icscf",
+      "hss",
+      "pcscf",
+      "e2e_ue1",
+      "e2e_ue2"
+    ],
+    "diagnosis_confidence": "high",
+    "diagnosis_explanation": "User equipment cannot register because a key component, the I-CSCF, has lost its connection to the user database (HSS). The evidence shows their communication link is stuck in an incomplete 'handshake' state. This prevents the I-CSCF from finding where to send the user's registration request, causing the process to stall and time out. Restarting the I-CSCF should force it to establish a new, healthy connection to the HSS and restore service.",
+    "score": {
+      "root_cause_correct": false,
+      "root_cause_has_fault_type": false,
+      "component_overlap": 1.0,
+      "truth_components": [
+        "pcscf"
+      ],
+      "rca_components": [
+        "e2e_ue1",
+        "e2e_ue2",
+        "hss",
+        "icscf",
+        "pcscf"
+      ],
+      "severity_correct": false,
+      "expected_severity": "degraded",
+      "rca_severity": "healthy",
+      "confidence_calibrated": false,
+      "rca_confidence": "high",
+      "total_score": 0.25
+    },
+    "time_to_diagnosis_seconds": 108.7,
+    "token_usage": {
+      "input_tokens": 78700,
+      "output_tokens": 3120,
+      "thinking_tokens": 16203,
+      "total_tokens": 98023,
+      "per_phase": [
+        {
+          "agent": "TriageAgent",
+          "tokens": 12746,
+          "tool_calls": 2,
+          "llm_calls": 3
+        },
+        {
+          "agent": "EndToEndTracer",
+          "tokens": 28523,
+          "tool_calls": 3,
+          "llm_calls": 4
+        },
+        {
+          "agent": "DispatchAgent",
+          "tokens": 4459,
+          "tool_calls": 0,
+          "llm_calls": 1
+        },
+        {
+          "agent": "TransportSpecialist",
+          "tokens": 29185,
+          "tool_calls": 4,
+          "llm_calls": 5
+        },
+        {
+          "agent": "IMSSpecialist",
+          "tokens": 15899,
+          "tool_calls": 2,
+          "llm_calls": 3
+        },
+        {
+          "agent": "SynthesisAgent",
+          "tokens": 7211,
+          "tool_calls": 0,
+          "llm_calls": 1
+        }
+      ]
+    }
+  }
+}

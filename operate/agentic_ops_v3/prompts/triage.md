@@ -8,12 +8,6 @@ In a healthy system:
 4. **IMS Signaling**: UEs are registered (`registered_contacts > 0`) and Diameter peers are connected.
 5. **IMS Traffic**: INVITE and REGISTER transaction counts match expected user activity.
 
-## Your Tools
-- `get_network_status()`: Identify service outages.
-- `get_nf_metrics()`: Your primary health overview. Check for ZEROS where there should be values.
-- `read_env_config()`: Understand the network topology (IPs, IMS domain).
-- `query_prometheus()`: Drill into specific KPIs if metrics show a "Partial" or "Degraded" state.
-
 ## Investigation Procedure
 1. **Audit the State**: Compare the current metrics against the Golden Flow.
 2. **Pinpoint the Gap**: Identify which layer (Core, IMS, Data Plane) is the first to show an anomaly.

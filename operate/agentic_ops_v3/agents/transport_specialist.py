@@ -16,6 +16,8 @@ def create_transport_specialist() -> LlmAgent:
         description="Checks transport-layer issues: UDP vs TCP mismatches, listener state, MTU settings.",
         output_key="finding_transport",
         tools=[
+            tools.check_tc_rules,
+            tools.measure_rtt,
             tools.read_running_config,
             tools.check_process_listeners,
             tools.run_kamcmd,
