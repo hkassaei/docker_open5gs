@@ -36,6 +36,7 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 
 from .agents.baseline import BaselineCollector
+from .agents.call_setup import CallSetupAgent, CallTeardownAgent
 from .agents.challenger import ChallengeAgent
 from .agents.fault_injector import FaultInjector
 from .agents.healer import Healer
@@ -76,6 +77,7 @@ def create_chaos_director(
     reg = registry or get_registry()
 
     baseline_collector = BaselineCollector()
+    call_setup = CallSetupAgent()
     fault_injector = FaultInjector(registry=reg)
     symptom_observer = create_symptom_observer(
         max_iterations=observation_max_iterations,
@@ -84,21 +86,24 @@ def create_chaos_director(
     )
     challenge_agent = ChallengeAgent()
     healer = Healer(registry=reg)
+    call_teardown = CallTeardownAgent()
     episode_recorder = EpisodeRecorder()
 
-    # Pipeline: baseline → inject → observe → [challenge] → heal → record
+    # Pipeline: baseline → [call_setup] → inject → observe → [challenge] → heal → [call_teardown] → record
     return SequentialAgent(
         name="ChaosDirector",
         description=(
             "Orchestrates a complete chaos episode: "
-            "baseline → inject → observe → [challenge] → heal → record."
+            "baseline → [call_setup] → inject → observe → [challenge] → heal → [call_teardown] → record."
         ),
         sub_agents=[
             baseline_collector,
+            call_setup,
             fault_injector,
             symptom_observer,
             challenge_agent,
             healer,
+            call_teardown,
             episode_recorder,
         ],
     )

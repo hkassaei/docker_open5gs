@@ -1,0 +1,259 @@
+{
+  "triage": "The 5G SA + IMS stack is experiencing significant issues, primarily originating from a critical infrastructure failure.\n\n**Radiograph Findings:**\n\n*   **Infrastructure Layer (Anomalous - Critical):**\n    *   The `pyhss` container is `exited`, directly violating the Golden Flow Baseline requiring all containers to be `running`. This is the root cause of subsequent IMS-related failures.\n\n*   **5G Control Plane (Anomalous):**\n    *   `AMF: ran_ue = 0.0`: Despite the SMF reporting active PDU sessions (`fivegs_smffunction_sm_sessionnbr = 4.0`) and active UEs (`ues_active = 2.0`), the AMF indicates no UEs are attached to the RAN (`ran_ue = 0.0`). This suggests a critical disconnect or failure in the RAN-AMF interface or UE attachment process. Error logs from `nr_gnb` confirm UE signal loss and AMF association termination.\n    *   `SMF`: Multiple `ERROR: No N1N2MessageTransferRspData [status:504]` indicating problems with signaling between SMF and AMF or other NFs.\n\n*   **IMS Signaling (Anomalous):**\n    *   Diameter peers are not fully connected/functional due to the `pyhss` being `exited`. The `scscf` logs confirm connection drops to the HSS (`hss.ims.mnc001.mcc001.3gppnetwork.org] read on socket [12] returned 0 > ... dropping`).\n    *   While some `PCSC: registered_contacts = 2.0` and `SCSCF: active_contacts = 2.0` are reported, these are likely stale or represent partial functionality. New registrations or re-registrations are expected to fail.\n    *   `ICSCF`: `cxdx_get_avp(): cxdx_get_result_code: Failed finding avp` and `ERROR: {1 7435 INVITE ... initial_request}` errors indicate IMS signaling failures, likely due to the HSS being unreachable.\n\n*   **5G Data Plane (Healthy):**\n    *   `UPF: fivegs_ep_n3_gtp_indatapktn3upf = 14768.0`: GTP packets are flowing, indicating that for any active PDU sessions (even if the `ran_ue` count is 0), data is being forwarded. This suggests the data plane itself is not the primary issue.\n\n*   **IMS Traffic (Anomalous):**\n    *   INVITE and REGISTER transaction counts are present, but given the `pyhss` failure and IMS signaling errors, these transactions are likely failing or experiencing significant issues.\n\n**Conclusion:**\n\nThe primary anomaly and root cause is the **Infrastructure layer failure due to the `pyhss` container being `exited`**. This critical component provides the Home Subscriber Server (HSS) functionality essential for IMS authentication and registration. Its failure has cascaded to the IMS Signaling layer, leading to Diameter connection issues, and is likely contributing to the 5G Control Plane's `ran_ue = 0.0` state as UEs cannot fully attach or remain registered without proper IMS services.",
+  "trace": "```json\n{\n  \"trace\": {\n    \"Trace Timeline\": [\n      \"e2e_ue1 [TX] INVITE\",\n      \"pcscf [RX] INVITE\",\n      \"pcscf [TX] INVITE\",\n      \"scscf (Orig) [RX] INVITE\",\n      \"scscf (Orig) [TX] INVITE\",\n      \"icscf [RX] INVITE\",\n      \"icscf [Processing] ERROR: initial_request (likely HSS query failure)\",\n      \"icscf [TX] 5xx Error (towards S-CSCF Orig/P-CSCF/e2e_ue1)\",\n      \"e2e_ue2 [NO RX] INVITE\"\n    ],\n    \"Failure Classification\": \"PROCESSING_FAILURE: icscf received INVITE and returned an ERROR during initial_request processing, likely due to HSS unreachability.\",\n    \"Investigation Pointer\": \"IMS/Core Specialist should investigate icscf logic and the availability of the pyhss (HSS) service.\"\n  }\n}\n```",
+  "dispatch": "The Triage Report identifies the primary anomaly and root cause as the `pyhss` container being `exited` at the Infrastructure layer. This directly impacts the Home Subscriber Server (HSS) functionality.\n\nThe Trace Result perfectly correlates with this finding, showing an `INVITE` failing at the `icscf` during `initial_request` processing, explicitly pointing to a \"likely HSS query failure\" and HSS unreachability. The `icscf` error logs (`cxdx_get_avp(): cxdx_get_result_code: Failed finding avp`) and `scscf` logs (`read on socket [12] returned 0 > ... dropping`) further confirm the HSS connectivity and query issues.\n\nBased on the specialist domains and laws:\n\n1.  **`subscriber_data`**: The `pyhss` being `exited` means the HSS is down. The HSS is the repository for subscriber data, and its unavailability directly violates the Law of Identity for authentication and user lookups. The `icscf` failing on \"HSS query\" is a direct `subscriber_data` concern.\n2.  **`ims`**: The trace shows an `INVITE` failing at the `icscf`, and the Triage reports \"IMS Signaling (Anomalous)\" with various `icscf` errors. This falls under the Law of Signaling, specifically regarding \"failure in S-CSCF selection or Diameter Cx lookups\" (the HSS queries are Diameter Cx/Dx).\n3.  **`transport`**: The \"Safety First\" Rule dictates that the `transport` specialist should always be dispatched. Furthermore, the `scscf` log \"read on socket [12] returned 0 > ... dropping\" to the HSS suggests a fundamental connectivity problem to the HSS, which `transport` would investigate, even if the root cause is the service being down. It can also investigate why the `pyhss` container is `exited` in the first place.\n\nThe `core` specialist is not required as the 5G Data Plane (UPF) is reported as healthy, and the issue is not related to data plane pipeline or GTP tunnel failures.\n\nDISPATCH: subscriber_data, ims, transport",
+  "findings": {
+    "ims": "The root cause is a **critical failure of the HSS (`pyhss`)**, which has resulted in a loss of connectivity on the Diameter Cx interface required for IMS subscriber lookups. The I-CSCF is therefore unable to route the incoming `INVITE` as it cannot query the HSS to find the assigned S-CSCF for the user.\n\n**The Evidence:**\n```raw_evidence_context\n\"result\": \"{\\n\\tRealm: ims.mnc001.mcc001.3gppnetwork.org\\n\\tIdentity: icscf.ims.mnc001.mcc001.3gppnetwork.org\\n\\tPeers: {\\n\\t\\tFQDN: hss.ims.mnc001.mcc001.3gppnetwork.org\\n\\t\\tDetails: {\\n\\t\\t\\tState: Closed\\n\\t\\t}\\n\\t}\\n}\"\n```\n\n**The Logic:**\nThe evidence shows the Diameter peer connection from the I-CSCF to the HSS is in the `Closed` state. According to the **Handshake Law**, this connection must be `R_Open` for the I-CSCF to perform a Location-Information-Request (LIR) to find the user's S-CSCF. The `pyhss` container being `exited` has caused all Diameter connections to close, directly leading to the `initial_request` processing failure seen in the trace.\n\n**The Disconfirm Check:**\nMy conclusion would be wrong if the `pyhss` container was actually running and the `cdp.list_peers` command still showed a `Closed` state. In that scenario, the problem would likely be a network policy or a misconfiguration in the Diameter client settings on the I-CSCF, which could be checked by examining the `kamailio-icscf.cfg` file.",
+    "transport": "The `check_process_listeners` command confirms that the `pyhss` container is not running.\n\n**The Logic:**\nThe IMS stack (specifically the S-CSCF and I-CSCF) relies on the Home Subscriber Server (HSS), provided by `pyhss`, for user authentication, authorization, and profile retrieval. If the `pyhss` container is exited, no HSS process can be listening for Diameter connections. This directly causes the `scscf` to drop connections to the HSS and the `icscf` to fail during initial request processing (e.g., `cxdx_get_result_code: Failed finding avp`, `ERROR: initial_request`), as it cannot reach the HSS for subscriber information.\n\n**The Disconfirm Check:**\nThis diagnosis would be disproven if the `pyhss` container were found to be running and actively listening on its expected Diameter ports, yet IMS signaling failures persisted.",
+    "subscriber_data": "**Root Cause: PyHSS (IMS HSS) Unreachable**\n\n1.  **The Evidence**:\n    ```json\n    {\n      \"raw_evidence_context\": {\n        \"query_subscriber_response\": {\n          \"result\": \"{\\n  \\\"ims_error\\\": \\\"Cannot connect to PyHSS API at http://172.22.0.18:8080. Is the pyhss container running?\\\"\\n}\"\n        }\n      }\n    }\n    ```\n    The `query_subscriber` API call for IMS data confirms that the PyHSS is unreachable. This aligns with the system status indicating the `pyhss` container is `exited`.\n\n2.  **The Logic**:\n    The \"Provisioning Law\" states that a UE can fail VoNR if it is missing from the IMS HSS database. In this case, the HSS itself is completely unreachable, meaning no IMS subscriber data can be retrieved for authentication, registration, or routing. This directly causes the observed IMS signaling failures, such as `cxdx_get_avp(): cxdx_get_result_code: Failed finding avp` and `ERROR: {1 7435 INVITE ... initial_request}` in the `icscf`, and connection drops reported by the `scscf` (`read on socket [12] returned 0 > ... dropping`).\n\n3.  **The Disconfirm Check**:\n    Evidence that would prove this diagnosis wrong would be if the `pyhss` container was running and accessible, and `query_subscriber(imsi='001011234567892', domain='ims')` returned valid subscriber data, yet IMS signaling failures persisted."
+  },
+  "diagnosis": "An investigation has been conducted into the 5G SA and IMS service degradation. All specialist findings point to a single, definitive root cause.\n\n### **Final Diagnosis**\n\n- **summary**: The IMS Home Subscriber Server (HSS) is down because its container (`pyhss`) has exited, causing all IMS call and registration attempts to fail.\n- **timeline**:\n    1.  `pyhss` container enters an `exited` state.\n    2.  `scscf` detects the HSS is unreachable and drops its Diameter connection (`read on socket [12] returned 0 > ... dropping`).\n    3.  `icscf`'s Diameter peer state for the HSS transitions to `Closed`.\n    4.  A UE initiates a call, sending an `INVITE` which is forwarded through the `pcscf` and `scscf` to the `icscf`.\n    5.  The `icscf` receives the `INVITE` and attempts to query the HSS to find the assigned S-CSCF for the destination subscriber.\n    6.  The query fails instantly because the connection to the HSS is `Closed`, triggering `cxdx_get_result_code: Failed finding avp` and `ERROR: initial_request` logs.\n    7.  The `icscf` cannot route the call and sends back an error, causing the call to fail.\n- **root_cause**: The `pyhss` Docker container, which provides the critical IMS Home Subscriber Server (HSS) functionality, is in an `exited` state. The HSS is the authoritative database for all subscriber identity, authentication, and routing information. Its complete unavailability means other IMS components cannot perform their functions, breaking the entire IMS signaling flow.\n- **affected_components**: `pyhss`, `icscf`, `scscf`.\n- **recommendation**: Restart the `pyhss` container using the appropriate container management command (e.g., `docker restart pyhss`). After restoring service, investigate the container's logs (e.g., `docker logs pyhss`) to determine the underlying reason for the crash and prevent recurrence.\n- **confidence**: high\n- **explanation**: The root cause of the outage is a critical infrastructure failure. The `pyhss` container, which runs the Home Subscriber Server (HSS), has crashed. The HSS is essential for the IMS network, as it tells components like the I-CSCF and S-CSCF how to authenticate users and where to route calls. Since the HSS is down, all Diameter connections to it are closed. When the I-CSCF receives a new call or registration, its attempt to query the HSS fails immediately. This is the direct cause of the `initial_request` errors and `cxdx_get_avp` failures seen in the logs, resulting in a total failure of all IMS services. Restarting the `pyhss` container will restore HSS functionality and resolve the issue.",
+  "events": [
+    "[TriageAgent] The network infrastructure is in a \"down\" state. The `pyhss` container, which is critical for IMS, is `exited`. This is a direct violation of the \"Golden Flow\" baseline, which requires all containers to be `running`.\n\n**Anomaly:**\n\n*   **Infrastructure Layer:** `pyhss` container is `exited`.\n\nThis issue at the infrastructure layer is likely to impact other layers, particularly IMS signaling. I will now proceed to gather full metrics to understand the cascading effects.",
+    "[EndToEndTracer] ```json\n{\n  \"trace\": {\n    \"Trace Timeline\": [\n      \"e2e_ue1 [TX] INVITE\",\n      \"pcscf [RX] INVITE\",\n      \"pcscf [TX] INVITE\",\n      \"scscf (Orig) [RX] INVITE\",\n      \"scscf (Orig) [TX] INVITE\",\n      \"icscf [RX] INVITE\",\n      \"icscf [Processing] ERROR: initial_request (likely HSS query failure)\",\n      \"icscf [TX] 5xx Error (towards S-CSCF Orig/P-CSCF/e2e_ue1)\",\n      \"e2e_ue2 [NO RX] INVITE\"\n    ],\n    \"Failure Classification\": \"PROCESSING_FAILURE: icscf received INVITE and returned an ERR",
+    "[DispatchAgent] The Triage Report identifies the primary anomaly and root cause as the `pyhss` container being `exited` at the Infrastructure layer. This directly impacts the Home Subscriber Server (HSS) functionality.\n\nThe Trace Result perfectly correlates with this finding, showing an `INVITE` failing at the `icscf` during `initial_request` processing, explicitly pointing to a \"likely HSS query failure\" and HSS unreachability. The `icscf` error logs (`cxdx_get_avp(): cxdx_get_result_code: Failed finding avp`)",
+    "[TransportSpecialist] The primary issue is a violation of the Listener Law: the `pyhss` container is not running, and therefore no process is listening on the expected HSS ports.\n\n**The Evidence:**\n",
+    "[SubscriberDataSpecialist] **Root Cause: PyHSS (IMS HSS) Unreachable**\n\n1.  **The Evidence**:\n    ```json\n    {\n      \"raw_evidence_context\": {\n        \"query_subscriber_response\": {\n          \"result\": \"{\\n  \\\"ims_error\\\": \\\"Cannot connect to PyHSS API at http://172.22.0.18:8080. Is the pyhss container running?\\\"\\n}\"\n        }\n      }\n    }\n    ```\n    The `query_subscriber` API call for IMS data confirms that the PyHSS is unreachable. This aligns with the system status indicating the `pyhss` container is `exited`.\n\n2.  ",
+    "[IMSSpecialist] The primary issue is a Diameter handshake failure between the I-CSCF and the HSS (`pyhss`). The trace shows the I-CSCF failing to process an incoming INVITE, which is consistent with an inability to query the HSS for subscriber location data (LIR). The provided logs confirm the `pyhss` container has exited and the S-CSCF has dropped its connection. I will verify the live state from the I-CSCF's perspective.",
+    "[SynthesisAgent] An investigation has been conducted into the 5G SA and IMS service degradation. All specialist findings point to a single, definitive root cause.\n\n### **Final Diagnosis**\n\n- **summary**: The IMS Home Subscriber Server (HSS) is down because its container (`pyhss`) has exited, causing all IMS call and registration attempts to fail.\n- **timeline**:\n    1.  `pyhss` container enters an `exited` state.\n    2.  `scscf` detects the HSS is unreachable and drops its Diameter connection (`read on socket [1"
+  ],
+  "total_tokens": 118738,
+  "investigation_trace": {
+    "question": "The 5G SA + IMS stack is experiencing issues. Investigate and diagnose the root cause.\n\nRecent error logs observed:\n  [amf] \u001b[32m03/25 18:58:01.869\u001b[0m: [\u001b[33msbi\u001b[0m] \u001b[1;32mINFO\u001b[0m: [b6805032-27b3-",
+    "started_at": 1774483777.2368884,
+    "finished_at": 1774483884.950249,
+    "duration_ms": 107713,
+    "total_tokens": {
+      "prompt": 100953,
+      "completion": 3721,
+      "thinking": 14064,
+      "total": 118738
+    },
+    "phases": [
+      {
+        "agent_name": "TriageAgent",
+        "started_at": 1774483777.2387476,
+        "finished_at": 1774483792.7079458,
+        "duration_ms": 15469,
+        "tokens": {
+          "prompt": 9101,
+          "completion": 836,
+          "thinking": 1491,
+          "total": 11428
+        },
+        "tool_calls": [
+          {
+            "name": "get_network_status",
+            "args": "",
+            "result_size": 999,
+            "timestamp": 1774483777.2387476
+          },
+          {
+            "name": "get_nf_metrics",
+            "args": "",
+            "result_size": 3631,
+            "timestamp": 1774483779.67874
+          }
+        ],
+        "llm_calls": 3,
+        "output_summary": "The network infrastructure is in a \"down\" state. The `pyhss` container, which is critical for IMS, is `exited`. This is a direct violation of the \"Golden Flow\" baseline, which requires all containers to be `running`.\n\n**Anomaly:**\n\n*   **Infrastructure Layer:** `pyhss` container is `exited`.\n\nThis issue at the infrastructure layer is likely to impact other layers, particularly IMS signaling. I will now proceed to gather full metrics to understand the cascading effects.",
+        "state_keys_written": [
+          "triage"
+        ]
+      },
+      {
+        "agent_name": "EndToEndTracer",
+        "started_at": 1774483792.7115955,
+        "finished_at": 1774483824.7452455,
+        "duration_ms": 32033,
+        "tokens": {
+          "prompt": 58309,
+          "completion": 556,
+          "thinking": 6122,
+          "total": 64987
+        },
+        "tool_calls": [
+          {
+            "name": "search_logs",
+            "args": "{\"containers\": [\"e2e_ue1\", \"pcscf\", \"scscf\", \"icscf\", \"e2e_ue2\"], \"pattern\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT\"}",
+            "result_size": 10553,
+            "timestamp": 1774483792.7115955
+          },
+          {
+            "name": "search_logs",
+            "args": "{\"containers\": [\"e2e_ue1\", \"pcscf\", \"scscf\", \"icscf\", \"e2e_ue2\"], \"pattern\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT INVITE\"}",
+            "result_size": 123,
+            "timestamp": 1774483797.3221807
+          },
+          {
+            "name": "read_container_logs",
+            "args": "{\"container\": \"icscf\", \"grep\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT\"}",
+            "result_size": 243,
+            "timestamp": 1774483797.3221807
+          },
+          {
+            "name": "read_container_logs",
+            "args": "{\"grep\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT\", \"container\": \"e2e_ue2\"}",
+            "result_size": 400,
+            "timestamp": 1774483797.3221807
+          },
+          {
+            "name": "read_container_logs",
+            "args": "{\"container\": \"e2e_ue2\", \"grep\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT\", \"tail\": 50}",
+            "result_size": 102,
+            "timestamp": 1774483804.6463976
+          },
+          {
+            "name": "search_logs",
+            "args": "{\"pattern\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT INVITE\", \"containers\": [\"pcscf\", \"scscf\"]}",
+            "result_size": 93,
+            "timestamp": 1774483804.6463976
+          },
+          {
+            "name": "search_logs",
+            "args": "{\"pattern\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT INVITE\", \"containers\": [\"e2e_ue1\"]}",
+            "result_size": 98,
+            "timestamp": 1774483804.6463976
+          },
+          {
+            "name": "search_logs",
+            "args": "{\"pattern\": \"wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT\", \"containers\": [\"e2e_ue1\", \"pcscf\", \"scscf\"]}",
+            "result_size": 10553,
+            "timestamp": 1774483809.6067276
+          }
+        ],
+        "llm_calls": 5,
+        "output_summary": "```json\n{\n  \"trace\": {\n    \"Trace Timeline\": [\n      \"e2e_ue1 [TX] INVITE\",\n      \"pcscf [RX] INVITE\",\n      \"pcscf [TX] INVITE\",\n      \"scscf (Orig) [RX] INVITE\",\n      \"scscf (Orig) [TX] INVITE\",\n      \"icscf [RX] INVITE\",\n      \"icscf [Processing] ERROR: initial_request (likely HSS query failure)\",\n      \"icscf [TX] 5xx Error (towards S-CSCF Orig/P-CSCF/e2e_ue1)\",\n      \"e2e_ue2 [NO RX] INVITE\"\n    ],\n    \"Failure Classification\": \"PROCESSING_FAILURE: icscf received INVITE and returned an ERR",
+        "state_keys_written": [
+          "trace"
+        ]
+      },
+      {
+        "agent_name": "DispatchAgent",
+        "started_at": 1774483824.7461214,
+        "finished_at": 1774483833.5023024,
+        "duration_ms": 8756,
+        "tokens": {
+          "prompt": 2785,
+          "completion": 482,
+          "thinking": 1493,
+          "total": 4760
+        },
+        "tool_calls": [],
+        "llm_calls": 1,
+        "output_summary": "The Triage Report identifies the primary anomaly and root cause as the `pyhss` container being `exited` at the Infrastructure layer. This directly impacts the Home Subscriber Server (HSS) functionality.\n\nThe Trace Result perfectly correlates with this finding, showing an `INVITE` failing at the `icscf` during `initial_request` processing, explicitly pointing to a \"likely HSS query failure\" and HSS unreachability. The `icscf` error logs (`cxdx_get_avp(): cxdx_get_result_code: Failed finding avp`)",
+        "state_keys_written": [
+          "dispatch"
+        ]
+      },
+      {
+        "agent_name": "TransportSpecialist",
+        "started_at": 1774483833.624427,
+        "finished_at": 1774483858.0055094,
+        "duration_ms": 24381,
+        "tokens": {
+          "prompt": 12110,
+          "completion": 262,
+          "thinking": 721,
+          "total": 13093
+        },
+        "tool_calls": [
+          {
+            "name": "check_process_listeners",
+            "args": "{\"container\": \"pyhss\"}",
+            "result_size": 182,
+            "timestamp": 1774483833.624427
+          },
+          {
+            "name": "check_process_listeners",
+            "args": "{\"container\": \"pyhss\"}",
+            "result_size": 182,
+            "timestamp": 1774483836.7791572
+          }
+        ],
+        "llm_calls": 3,
+        "output_summary": "The primary issue is a violation of the Listener Law: the `pyhss` container is not running, and therefore no process is listening on the expected HSS ports.\n\n**The Evidence:**\n",
+        "state_keys_written": [
+          "finding_transport"
+        ]
+      },
+      {
+        "agent_name": "SubscriberDataSpecialist",
+        "started_at": 1774483833.505811,
+        "finished_at": 1774483858.0055094,
+        "duration_ms": 24499,
+        "tokens": {
+          "prompt": 6347,
+          "completion": 402,
+          "thinking": 723,
+          "total": 7472
+        },
+        "tool_calls": [
+          {
+            "name": "query_subscriber",
+            "args": "{\"imsi\": \"001011234567892\", \"domain\": \"ims\"}",
+            "result_size": 128,
+            "timestamp": 1774483833.505811
+          }
+        ],
+        "llm_calls": 2,
+        "output_summary": "**Root Cause: PyHSS (IMS HSS) Unreachable**\n\n1.  **The Evidence**:\n    ```json\n    {\n      \"raw_evidence_context\": {\n        \"query_subscriber_response\": {\n          \"result\": \"{\\n  \\\"ims_error\\\": \\\"Cannot connect to PyHSS API at http://172.22.0.18:8080. Is the pyhss container running?\\\"\\n}\"\n        }\n      }\n    }\n    ```\n    The `query_subscriber` API call for IMS data confirms that the PyHSS is unreachable. This aligns with the system status indicating the `pyhss` container is `exited`.\n\n2.  ",
+        "state_keys_written": [
+          "finding_subscriber_data"
+        ]
+      },
+      {
+        "agent_name": "IMSSpecialist",
+        "started_at": 1774483833.5608068,
+        "finished_at": 1774483858.0055094,
+        "duration_ms": 24444,
+        "tokens": {
+          "prompt": 7702,
+          "completion": 537,
+          "thinking": 1523,
+          "total": 9762
+        },
+        "tool_calls": [
+          {
+            "name": "run_kamcmd",
+            "args": "{\"command\": \"cdp.list_peers\", \"container\": \"icscf\"}",
+            "result_size": 1006,
+            "timestamp": 1774483833.5608068
+          }
+        ],
+        "llm_calls": 2,
+        "output_summary": "The primary issue is a Diameter handshake failure between the I-CSCF and the HSS (`pyhss`). The trace shows the I-CSCF failing to process an incoming INVITE, which is consistent with an inability to query the HSS for subscriber location data (LIR). The provided logs confirm the `pyhss` container has exited and the S-CSCF has dropped its connection. I will verify the live state from the I-CSCF's perspective.",
+        "state_keys_written": [
+          "finding_ims"
+        ]
+      },
+      {
+        "agent_name": "SynthesisAgent",
+        "started_at": 1774483858.0065837,
+        "finished_at": 1774483884.950232,
+        "duration_ms": 26943,
+        "tokens": {
+          "prompt": 4599,
+          "completion": 646,
+          "thinking": 1991,
+          "total": 7236
+        },
+        "tool_calls": [],
+        "llm_calls": 1,
+        "output_summary": "An investigation has been conducted into the 5G SA and IMS service degradation. All specialist findings point to a single, definitive root cause.\n\n### **Final Diagnosis**\n\n- **summary**: The IMS Home Subscriber Server (HSS) is down because its container (`pyhss`) has exited, causing all IMS call and registration attempts to fail.\n- **timeline**:\n    1.  `pyhss` container enters an `exited` state.\n    2.  `scscf` detects the HSS is unreachable and drops its Diameter connection (`read on socket [1",
+        "state_keys_written": [
+          "diagnosis"
+        ]
+      }
+    ],
+    "invocation_chain": [
+      "TriageAgent",
+      "EndToEndTracer",
+      "DispatchAgent",
+      "TransportSpecialist",
+      "SubscriberDataSpecialist",
+      "IMSSpecialist",
+      "SynthesisAgent"
+    ]
+  }
+}

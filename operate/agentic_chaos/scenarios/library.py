@@ -144,6 +144,7 @@ data_plane_degradation = Scenario(
         "GTP-U packet counters anomaly",
         "Potential call quality degradation",
     ],
+    requires_active_call=True,
     observation_window_seconds=30,
     ttl_seconds=300,
 )

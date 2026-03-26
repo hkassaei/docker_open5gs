@@ -105,7 +105,9 @@ async def cmd_run(args: argparse.Namespace) -> int:
         print(f"    Root cause:   {'correct' if score.get('root_cause_correct') else 'WRONG'}")
         print(f"    Components:   {score.get('component_overlap', 0):.0%} overlap")
         print(f"    Severity:     {'correct' if score.get('severity_correct') else 'WRONG'}")
-        print(f"    Diagnosis:    {challenge.get('diagnosis_summary', '?')[:120]}")
+        summary = score.get("summary", "")
+        if summary:
+            print(f"    Assessment:   {summary[:150]}")
 
     md_path = episode.get("markdown_path")
     if md_path:

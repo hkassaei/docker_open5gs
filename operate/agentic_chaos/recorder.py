@@ -253,20 +253,16 @@ def _generate_markdown_summary(episode: dict, agent_version: str) -> str:
             f"**Time to diagnosis:** {challenge.get('time_to_diagnosis_seconds', 0):.1f}s"
         )
         lines.append("")
-        lines.append(f"**Summary:** {challenge.get('diagnosis_summary', 'N/A')}")
-        lines.append("")
 
-        root_cause = challenge.get("diagnosis_root_cause", "")
-        if root_cause:
-            lines.append(f"**Root cause identified:** {root_cause}")
+        # Show the full diagnosis text
+        diagnosis_text = challenge.get("diagnosis_text", "")
+        if diagnosis_text:
+            lines.append(f"**Diagnosis:**")
+            lines.append("")
+            lines.append(f"> {diagnosis_text.replace(chr(10), chr(10) + '> ')}")
             lines.append("")
 
-        affected = challenge.get("diagnosis_affected_components", [])
-        if affected:
-            lines.append(f"**Components identified:** {', '.join(affected)}")
-            lines.append("")
-
-        # Scoring breakdown
+        # Scoring breakdown with rationales from LLM judge
         score = challenge.get("score", {})
         if score:
             total = score.get("total_score", 0)
@@ -274,39 +270,48 @@ def _generate_markdown_summary(episode: dict, agent_version: str) -> str:
             lines.append("")
             lines.append(f"**Overall score: {total:.0%}**")
             lines.append("")
-            lines.append("| Dimension | Result |")
-            lines.append("|-----------|--------|")
+
+            # Summary from the LLM judge
+            scorer_summary = score.get("summary", "")
+            if scorer_summary:
+                lines.append(f"**Scorer assessment:** {scorer_summary}")
+                lines.append("")
+
+            lines.append("| Dimension | Result | Rationale |")
+            lines.append("|-----------|--------|-----------|")
             lines.append(
-                f"| Root cause correct | {'Yes' if score.get('root_cause_correct') else 'No'} |"
+                f"| Root cause correct | {'Yes' if score.get('root_cause_correct') else 'No'} "
+                f"| {score.get('root_cause_rationale', '')} |"
             )
             lines.append(
-                f"| Component overlap | {score.get('component_overlap', 0):.0%} |"
+                f"| Component overlap | {score.get('component_overlap', 0):.0%} "
+                f"| {score.get('component_rationale', '')} |"
             )
             lines.append(
-                f"| Severity correct | {'Yes' if score.get('severity_correct') else 'No'} |"
+                f"| Severity correct | {'Yes' if score.get('severity_correct') else 'No'} "
+                f"| {score.get('severity_rationale', '')} |"
             )
             lines.append(
-                f"| Fault type identified | {'Yes' if score.get('root_cause_has_fault_type') else 'No'} |"
+                f"| Fault type identified | {'Yes' if score.get('fault_type_identified') else 'No'} "
+                f"| {score.get('fault_type_rationale', '')} |"
             )
             lines.append(
-                f"| Confidence calibrated | {'Yes' if score.get('confidence_calibrated') else 'No'} |"
+                f"| Confidence calibrated | {'Yes' if score.get('confidence_calibrated') else 'No'} "
+                f"| {score.get('confidence_rationale', '')} |"
             )
             lines.append("")
 
-            # Verdict
-            if total >= 0.8:
-                verdict = "The agent correctly diagnosed this scenario."
-            elif total >= 0.5:
-                verdict = (
-                    "The agent partially diagnosed this scenario — it identified some "
-                    "elements correctly but missed key aspects."
+            # Ranking position (for multi-candidate diagnoses)
+            ranking = score.get("ranking_position")
+            if ranking is not None:
+                lines.append(
+                    f"**Ranking position:** #{ranking} — {score.get('ranking_rationale', '')}"
                 )
-            else:
-                verdict = (
-                    "The agent failed to diagnose this scenario. The root cause was "
-                    "either missed entirely or the agent fixated on the wrong issue."
+            elif score.get("ranking_rationale"):
+                lines.append(
+                    f"**Ranking:** {score.get('ranking_rationale', '')}"
                 )
-            lines.append(f"**Verdict:** {verdict}")
+            lines.append("")
 
         # Token usage
         token_usage = challenge.get("token_usage", {})

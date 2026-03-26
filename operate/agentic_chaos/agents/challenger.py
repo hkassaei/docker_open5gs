@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import sys
 import time
 from pathlib import Path
@@ -53,70 +52,6 @@ def _get_v3_models() -> str:
     except Exception:
         pass
     return "gemini-unknown"
-
-
-def _parse_diagnosis_json(text: str) -> dict | None:
-    """Extract a structured diagnosis dict from v3's free-text output.
-
-    The v3 synthesis agent often returns JSON wrapped in ```json fences.
-    This extracts and parses it, returning None if no valid JSON is found.
-    """
-    # Try to find JSON in ```json ... ``` fences
-    match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
-
-    # Try to find a raw JSON object
-    match = re.search(r"\{[^{}]*\"root_cause\"[^{}]*\}", text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-
-    # Try the entire text as JSON
-    try:
-        parsed = json.loads(text)
-        if isinstance(parsed, dict):
-            return parsed
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    return None
-
-
-# Known container names in the stack — used to extract affected components
-# from free-text diagnosis when JSON parsing fails
-_KNOWN_CONTAINERS = {
-    "dns", "mongo", "mysql", "nrf", "scp", "ausf", "udr", "udm",
-    "amf", "smf", "upf", "pcf", "pcscf", "icscf", "scscf",
-    "pyhss", "rtpengine", "nr_gnb", "e2e_ue1", "e2e_ue2",
-}
-
-
-def _extract_components_from_text(text: str) -> list[str]:
-    """Scan diagnosis text for mentions of known container names."""
-    text_lower = text.lower()
-    found = []
-    for name in _KNOWN_CONTAINERS:
-        # Match the container name as a word boundary (avoid partial matches)
-        # e.g., "dns" in "dns container" but not "dnsmasq"
-        if re.search(rf"\b{re.escape(name)}\b", text_lower):
-            found.append(name)
-    return sorted(found)
-
-
-def _extract_confidence_from_text(text: str) -> str:
-    """Extract confidence level from diagnosis text."""
-    text_lower = text.lower()
-    # Look for explicit confidence statements
-    match = re.search(r"confidence[:\s]+['\"]?(high|medium|low)['\"]?", text_lower)
-    if match:
-        return match.group(1)
-    return ""
 
 
 class ChallengeAgent(BaseAgent):
@@ -180,9 +115,15 @@ class ChallengeAgent(BaseAgent):
 
         elapsed = time.time() - start_time
 
-        # Score the diagnosis
-        score = score_diagnosis(
-            diagnosis=diagnosis_dict,
+        # Get the raw diagnosis text for the LLM scorer
+        diagnosis_text = diagnosis_dict.get("_raw_diagnosis", "")
+        if not diagnosis_text:
+            # Fallback: reconstruct from parsed fields
+            diagnosis_text = diagnosis_dict.get("root_cause", diagnosis_dict.get("summary", ""))
+
+        # Score the diagnosis using LLM judge
+        score = await score_diagnosis(
+            diagnosis_text=diagnosis_text,
             injected_faults=faults_injected,
             scenario=scenario,
         )
@@ -196,25 +137,22 @@ class ChallengeAgent(BaseAgent):
 
         challenge_result = {
             "rca_agent_model": rca_model,
-            "diagnosis_summary": diagnosis_dict.get("summary", ""),
-            "diagnosis_root_cause": diagnosis_dict.get("root_cause", ""),
-            "diagnosis_affected_components": diagnosis_dict.get("affected_components", []),
-            "diagnosis_confidence": diagnosis_dict.get("confidence", ""),
-            "diagnosis_explanation": diagnosis_dict.get("explanation", ""),
+            "diagnosis_text": diagnosis_text,
             "score": score,
             "time_to_diagnosis_seconds": round(elapsed, 1),
             "token_usage": token_usage,
         }
 
+        total = score.get("total_score", 0)
         msg = (
             f"Challenge Mode complete ({elapsed:.1f}s)\n"
-            f"  RCA summary: {diagnosis_dict.get('summary', '?')[:100]}\n"
-            f"  Score: {score['total_score']:.0%}\n"
-            f"    Root cause correct: {score['root_cause_correct']}\n"
-            f"    Component overlap:  {score['component_overlap']:.0%}\n"
-            f"    Severity correct:   {score['severity_correct']}"
+            f"  Score: {total:.0%}\n"
+            f"    Root cause correct: {score.get('root_cause_correct')}\n"
+            f"    Component overlap:  {score.get('component_overlap', 0):.0%}\n"
+            f"    Severity correct:   {score.get('severity_correct')}\n"
+            f"  Scorer summary: {score.get('summary', '?')}"
         )
-        log.info("Challenge Mode: score=%.0f%%", score["total_score"] * 100)
+        log.info("Challenge Mode: score=%.0f%%", total * 100)
 
         yield Event(
             author=self.name,
@@ -318,6 +256,8 @@ class ChallengeAgent(BaseAgent):
 
         if result and result.output:
             out = result.output.model_dump()
+            # Include the full diagnosis as raw text for the LLM scorer
+            out["_raw_diagnosis"] = json.dumps(out, indent=2, default=str)
             # Attach token usage from pydantic-ai
             usage = result.usage()
             out["_token_usage"] = {
@@ -329,7 +269,7 @@ class ChallengeAgent(BaseAgent):
             }
             return out
 
-        return {"summary": "Agent produced no output", "affected_components": []}
+        return {"_raw_diagnosis": "Agent produced no output"}
 
     async def _run_v3_agent(self, question: str) -> dict:
         """Run the v3 (ADK multi-phase) troubleshooting agent."""
@@ -337,32 +277,8 @@ class ChallengeAgent(BaseAgent):
 
         result = await investigate(question)
 
-        # v3's diagnosis is often a JSON string (possibly wrapped in ```json fences)
-        diagnosis_raw = result.get("diagnosis", "")
-        diagnosis_str = str(diagnosis_raw)
-
-        # Try to parse structured JSON from the diagnosis
-        parsed = _parse_diagnosis_json(diagnosis_str)
-
-        if parsed:
-            components = parsed.get("affected_components", [])
-            confidence = parsed.get("confidence", "")
-        else:
-            components = []
-            confidence = ""
-
-        # If JSON parsing didn't yield components, extract them from the text
-        # by scanning for known container names mentioned in the diagnosis
-        if not components:
-            components = _extract_components_from_text(diagnosis_str)
-
-        # If confidence wasn't found, look for it in the text
-        if not confidence:
-            confidence = _extract_confidence_from_text(diagnosis_str)
-
-        summary = (parsed or {}).get("summary", diagnosis_str[:500]) if diagnosis_str else "Agent produced no output"
-        root_cause = (parsed or {}).get("root_cause", diagnosis_str)
-        explanation = (parsed or {}).get("explanation", diagnosis_str)
+        # The raw diagnosis text — passed directly to the LLM scorer
+        diagnosis_raw = str(result.get("diagnosis", ""))
 
         # Extract token usage from v3's investigation trace
         trace = result.get("investigation_trace", {})
@@ -387,13 +303,8 @@ class ChallengeAgent(BaseAgent):
             ]
 
         return {
-            "summary": summary,
-            "root_cause": root_cause,
-            "affected_components": components,
-            "confidence": confidence,
-            "explanation": explanation,
+            "_raw_diagnosis": diagnosis_raw,
             "_token_usage": token_usage,
-            "_v3_full_result": result,
         }
 
     async def _run_live_impl(self, ctx):

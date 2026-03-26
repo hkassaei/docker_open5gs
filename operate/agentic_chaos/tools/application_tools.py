@@ -212,3 +212,87 @@ async def corrupt_config(
         "heal_cmd": heal_cmd,
         "detail": output or "Config modified",
     }
+
+
+# -------------------------------------------------------------------------
+# VoNR call setup/teardown (for data plane scenarios)
+# -------------------------------------------------------------------------
+
+_CALL_SETUP_TIMEOUT = 30  # seconds to wait for call to connect
+_PJSUA_FIFO = "/tmp/pjsua_cmd"
+
+
+async def establish_vonr_call(ims_domain: str, callee_imsi: str) -> dict:
+    """Initiate a VoNR call from UE1 to UE2 via pjsua FIFO.
+
+    Sends the make-call command to UE1's pjsua instance, dials UE2's SIP URI,
+    and waits for the call to reach CONFIRMED state.
+
+    Args:
+        ims_domain: IMS domain (e.g. 'ims.mnc001.mcc001.3gppnetwork.org').
+        callee_imsi: Callee's IMSI (e.g. '001011234567892').
+
+    Returns:
+        {success, call_uri, detail}
+    """
+    import asyncio
+
+    call_uri = f"sip:{callee_imsi}@{ims_domain}"
+
+    # Step 1: Send 'm' to enter the make-call menu
+    rc, out = await shell(
+        f'docker exec e2e_ue1 bash -c "echo m >> {_PJSUA_FIFO}"'
+    )
+    if rc != 0:
+        return {"success": False, "call_uri": call_uri, "detail": f"Failed to send make-call command: {out}"}
+
+    # Wait for pjsua to show the dial prompt
+    await asyncio.sleep(3)
+
+    # Step 2: Send the SIP URI to dial
+    rc, out = await shell(
+        f"docker exec e2e_ue1 bash -c \"echo '{call_uri}' >> {_PJSUA_FIFO}\""
+    )
+    if rc != 0:
+        return {"success": False, "call_uri": call_uri, "detail": f"Failed to send dial command: {out}"}
+
+    # Step 3: Poll UE1 logs for call confirmation
+    elapsed = 0
+    poll_interval = 2
+    while elapsed < _CALL_SETUP_TIMEOUT:
+        await asyncio.sleep(poll_interval)
+        elapsed += poll_interval
+
+        rc, logs = await shell(
+            "docker logs --tail 20 e2e_ue1 2>&1"
+        )
+        if "CONFIRMED" in logs:
+            log.info("VoNR call established: %s → CONFIRMED", call_uri)
+            return {
+                "success": True,
+                "call_uri": call_uri,
+                "detail": "Call established and in CONFIRMED state",
+            }
+
+    # Timeout — call didn't connect
+    return {
+        "success": False,
+        "call_uri": call_uri,
+        "detail": f"Call setup timed out after {_CALL_SETUP_TIMEOUT}s — call did not reach CONFIRMED state",
+    }
+
+
+async def hangup_call() -> dict:
+    """Hang up the active VoNR call on UE1 via pjsua FIFO.
+
+    Returns:
+        {success, detail}
+    """
+    rc, out = await shell(
+        f'docker exec e2e_ue1 bash -c "echo h >> {_PJSUA_FIFO}"'
+    )
+    if rc != 0:
+        return {"success": False, "detail": f"Failed to send hangup command: {out}"}
+
+    log.info("VoNR call hangup sent")
+    return {"success": True, "detail": "Hangup command sent"}

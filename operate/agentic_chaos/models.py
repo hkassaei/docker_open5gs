@@ -206,6 +206,10 @@ class Scenario(BaseModel):
     challenge_mode: bool = False
     """Run RCA agent after observation and score its diagnosis?"""
 
+    requires_active_call: bool = False
+    """Establish a VoNR call between UE1 and UE2 before fault injection?
+    Required for data plane scenarios where traffic must be flowing."""
+
     observation_window_seconds: int = 30
     ttl_seconds: int = 120
 

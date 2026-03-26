@@ -1,0 +1,528 @@
+{
+  "schema_version": "1.0",
+  "episode_id": "ep_20260326_000932_cascading_ims_failure",
+  "timestamp": "2026-03-26T00:09:33.404561+00:00",
+  "duration_seconds": 120.98455,
+  "scenario": {
+    "name": "Cascading IMS Failure",
+    "description": "Kill PyHSS AND add 2-second latency to the S-CSCF. This simulates a cascading failure: the HSS is gone (no Diameter auth) AND the S-CSCF is degraded (slow SIP processing). Total IMS outage.",
+    "category": "compound",
+    "blast_radius": "multi_nf",
+    "faults": [
+      {
+        "fault_type": "container_kill",
+        "target": "pyhss",
+        "params": {},
+        "ttl_seconds": 300
+      },
+      {
+        "fault_type": "network_latency",
+        "target": "scscf",
+        "params": {
+          "delay_ms": 2000
+        },
+        "ttl_seconds": 300
+      }
+    ],
+    "expected_symptoms": [
+      "Diameter completely down (HSS killed)",
+      "SIP transactions extremely slow (2s latency on S-CSCF)",
+      "Total IMS registration failure",
+      "No voice calls possible"
+    ],
+    "escalation": false,
+    "challenge_mode": true,
+    "requires_active_call": false,
+    "observation_window_seconds": 30,
+    "ttl_seconds": 300
+  },
+  "baseline": {
+    "timestamp": "2026-03-26T00:09:33.404561+00:00",
+    "stack_phase": "ready",
+    "container_status": {
+      "mongo": "running",
+      "nrf": "running",
+      "scp": "running",
+      "ausf": "running",
+      "udr": "running",
+      "udm": "running",
+      "amf": "running",
+      "smf": "running",
+      "upf": "running",
+      "pcf": "running",
+      "dns": "running",
+      "mysql": "running",
+      "pyhss": "running",
+      "icscf": "running",
+      "scscf": "running",
+      "pcscf": "running",
+      "rtpengine": "running",
+      "nr_gnb": "running",
+      "e2e_ue1": "running",
+      "e2e_ue2": "running"
+    },
+    "metrics": {
+      "amf": {
+        "metrics": {
+          "amf_session": 0.0,
+          "ran_ue": 0.0,
+          "gnb": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "smf": {
+        "metrics": {
+          "fivegs_smffunction_sm_sessionnbr": 4.0,
+          "ues_active": 2.0,
+          "bearers_active": 4.0,
+          "pfcp_sessions_active": 4.0
+        },
+        "badge": "4 PDU",
+        "source": "prometheus"
+      },
+      "upf": {
+        "metrics": {
+          "fivegs_upffunction_upf_sessionnbr": 4.0,
+          "fivegs_ep_n3_gtp_indatapktn3upf": 14767.0,
+          "fivegs_ep_n3_gtp_outdatapktn3upf": 8251.0
+        },
+        "badge": "4 sess",
+        "source": "prometheus"
+      },
+      "pcf": {
+        "metrics": {
+          "fivegs_pcffunction_pa_sessionnbr": 4.0,
+          "fivegs_pcffunction_pa_policyamassoreq": 4.0,
+          "fivegs_pcffunction_pa_policyamassosucc": 4.0,
+          "fivegs_pcffunction_pa_policysmassoreq": 8.0,
+          "fivegs_pcffunction_pa_policysmassosucc": 8.0
+        },
+        "badge": "4 PA",
+        "source": "prometheus"
+      },
+      "pcscf": {
+        "metrics": {
+          "core:rcv_requests_bye": 4.0,
+          "core:rcv_requests_invite": 4.0,
+          "core:rcv_requests_options": 10881.0,
+          "core:rcv_requests_register": 56.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 4.0,
+          "httpclient:connections": 0.0,
+          "httpclient:connfail": 10890.0,
+          "httpclient:connok": 4.0,
+          "ims_usrloc_pcscf:expired_contacts": 8.0,
+          "ims_usrloc_pcscf:registered_contacts": 2.0,
+          "ims_usrloc_pcscf:registered_impus": 8.0,
+          "registrar:accepted_regs": 0.0,
+          "registrar:default_expire": 3600.0,
+          "registrar:default_expires_range": 0.0,
+          "registrar:expires_range": 0.0,
+          "registrar:max_contacts": 0.0,
+          "registrar:max_expires": 0.0,
+          "registrar:rejected_regs": 0.0,
+          "script:register_failed": 0.0,
+          "script:register_success": 28.0,
+          "script:register_time": 9266.0,
+          "sl:1xx_replies": 60.0,
+          "sl:200_replies": 0.0,
+          "sl:4xx_replies": 0.0,
+          "sl:5xx_replies": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "2 reg",
+        "source": "kamcmd"
+      },
+      "icscf": {
+        "metrics": {
+          "cdp:average_response_time": 88.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 30.0,
+          "cdp:replies_response_time": 2668.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_register": 56.0,
+          "ims_icscf:lir_avg_response_time": 73.0,
+          "ims_icscf:lir_replies_received": 2.0,
+          "ims_icscf:lir_replies_response_time": 147.0,
+          "ims_icscf:lir_timeouts": 0.0,
+          "ims_icscf:uar_avg_response_time": 90.0,
+          "ims_icscf:uar_replies_received": 28.0,
+          "ims_icscf:uar_replies_response_time": 2521.0,
+          "ims_icscf:uar_timeouts": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "56 req",
+        "source": "kamcmd"
+      },
+      "scscf": {
+        "metrics": {
+          "cdp:average_response_time": 123.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 8.0,
+          "cdp:replies_response_time": 990.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_register": 8.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 2.0,
+          "ims_auth:mar_avg_response_time": 126.0,
+          "ims_auth:mar_replies_received": 4.0,
+          "ims_auth:mar_replies_response_time": 506.0,
+          "ims_auth:mar_timeouts": 0.0,
+          "ims_registrar_scscf:accepted_regs": 4.0,
+          "ims_registrar_scscf:default_expire": 3600.0,
+          "ims_registrar_scscf:default_expires_range": 0.0,
+          "ims_registrar_scscf:max_contacts": 5.0,
+          "ims_registrar_scscf:max_expires": 3600.0,
+          "ims_registrar_scscf:notifies_in_q": 0.0,
+          "ims_registrar_scscf:rejected_regs": 0.0,
+          "ims_registrar_scscf:sar_avg_response_time": 121.0,
+          "ims_registrar_scscf:sar_replies_received": 4.0,
+          "ims_registrar_scscf:sar_replies_response_time": 484.0,
+          "ims_registrar_scscf:sar_timeouts": 0.0,
+          "ims_usrloc_scscf:active_contacts": 2.0,
+          "ims_usrloc_scscf:active_impus": 6.0,
+          "ims_usrloc_scscf:active_subscriptions": 2.0,
+          "ims_usrloc_scscf:contact_collisions": 1.0,
+          "ims_usrloc_scscf:impu_collisions": 1.0,
+          "ims_usrloc_scscf:subscription_collisions": 1.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "2 reg",
+        "source": "kamcmd"
+      },
+      "pyhss": {
+        "metrics": {
+          "ims_subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "api"
+      },
+      "mongo": {
+        "metrics": {
+          "subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "mongosh"
+      }
+    }
+  },
+  "faults": [
+    {
+      "fault_id": "f_c0fae930",
+      "fault_type": "container_kill",
+      "target": "pyhss",
+      "params": {},
+      "mechanism": "docker kill pyhss",
+      "heal_command": "docker start pyhss",
+      "injected_at": "2026-03-26T00:09:33.405215+00:00",
+      "ttl_seconds": 300,
+      "expires_at": "2026-03-26T00:14:33.405215+00:00",
+      "success": true,
+      "verified": true,
+      "verification_result": "Expected 'exited', got 'exited'"
+    },
+    {
+      "fault_id": "f_bb6ccecd",
+      "fault_type": "network_latency",
+      "target": "scscf",
+      "params": {
+        "delay_ms": 2000
+      },
+      "mechanism": "sudo nsenter -t 806556 -n tc qdisc add dev eth0 root netem delay 2000ms",
+      "heal_command": "sudo nsenter -t 806556 -n tc qdisc del dev eth0 root",
+      "injected_at": "2026-03-26T00:09:34.019192+00:00",
+      "ttl_seconds": 300,
+      "expires_at": "2026-03-26T00:14:34.019192+00:00",
+      "success": true,
+      "verified": true,
+      "verification_result": "qdisc netem 800b: root refcnt 9 limit 1000 delay 2s"
+    }
+  ],
+  "observations": [
+    {
+      "iteration": 1,
+      "timestamp": "2026-03-26T00:09:34.128018+00:00",
+      "elapsed_seconds": 0.723457,
+      "metrics_delta": {
+        "upf": {
+          "fivegs_ep_n3_gtp_indatapktn3upf": {
+            "baseline": 14767.0,
+            "current": 14768.0,
+            "delta": 1.0
+          }
+        }
+      },
+      "log_samples": {
+        "amf": [
+          "\u001b[32m03/25 18:58:01.869\u001b[0m: [\u001b[33msbi\u001b[0m] \u001b[1;32mINFO\u001b[0m: [b6805032-27b3-41f1-9a04-3f025a6967cf] (NRF-profile-get) NF registered (../lib/sbi/nf-sm.c:81)"
+        ],
+        "smf": [
+          "\u001b[32m03/25 19:52:55.606\u001b[0m: [\u001b[33msmf\u001b[0m] \u001b[1;33mERROR\u001b[0m: No N1N2MessageTransferRspData [status:504] (../src/smf/namf-handler.c:61)",
+          "\u001b[32m03/25 19:52:55.778\u001b[0m: [\u001b[33msmf\u001b[0m] \u001b[1;33mERROR\u001b[0m: No N1N2MessageTransferRspData [status:504] (../src/smf/namf-handler.c:61)",
+          "\u001b[32m03/25 19:52:55.801\u001b[0m: [\u001b[33msmf\u001b[0m] \u001b[1;33mERROR\u001b[0m: No N1N2MessageTransferRspData [status:504] (../src/smf/namf-handler.c:61)",
+          "\u001b[32m03/25 19:52:55.815\u001b[0m: [\u001b[33msmf\u001b[0m] \u001b[1;33mERROR\u001b[0m: No N1N2MessageTransferRspData [status:504] (../src/smf/namf-handler.c:61)",
+          "\u001b[32m03/25 19:55:14.603\u001b[0m: [\u001b[33msmf\u001b[0m] \u001b[1;33mERROR\u001b[0m: No N1N2MessageTransferRspData [status:504] (../src/smf/namf-handler.c:61)",
+          "\u001b[32m03/25 19:55:14.616\u001b[0m: [\u001b[33msmf\u001b[0m] \u001b[1;33mERROR\u001b[0m: No N1N2MessageTransferRspData [status:504] (../src/smf/namf-handler.c:61)"
+        ],
+        "icscf": [
+          "\u001b[0;39;49m\u001b[0;36;49m16(66) INFO: {1 41336 REGISTER 3XTNTwFj9xCIs1MxVzLCqD5YTsIhBm6t <null>} ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m19(69) INFO: {1 8621 REGISTER dP4b5Jfs.f7epCLv7ESWEs72uVAQ2b7D <null>} ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m20(70) INFO: {1 41338 REGISTER 3XTNTwFj9xCIs1MxVzLCqD5YTsIhBm6t <null>} ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m21(71) INFO: {1 8623 REGISTER dP4b5Jfs.f7epCLv7ESWEs72uVAQ2b7D <null>} ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;31;49m 4(54) ERROR: {1 7435 INVITE wgNlNJPhsOxtVh8HKINCUWgG.vQ.3oHT initial_request} <script>: $ru => sip:001011234567892@ims.mnc001.mcc001.3gppnetwork.org",
+          "\u001b[0;39;49m\u001b[0;36;49m22(72) INFO: {1 41340 REGISTER 3XTNTwFj9xCIs1MxVzLCqD5YTsIhBm6t <null>} ims_icscf [cxdx_avp.c:140]: cxdx_get_avp(): cxdx_get_experimental_result_code: Failed finding avp",
+          "\u001b[0;39;49m\u001b[0;36;49m26(76) INFO: cdp [receiver.c:923]: receive_loop(): [hss.ims.mnc001.mcc001.3gppnetwork.org] read on socket [20] returned 0 > ... dropping"
+        ],
+        "scscf": [
+          "\u001b[0;39;49m\u001b[0;36;49m26(65) INFO: cdp [receiver.c:923]: receive_loop(): [hss.ims.mnc001.mcc001.3gppnetwork.org] read on socket [12] returned 0 > ... dropping"
+        ],
+        "nr_gnb": [
+          "[2026-03-25 15:06:47.233] [rls] [\u001b[36mdebug\u001b[m] UE[7] signal lost",
+          "[2026-03-25 15:06:47.233] [rls] [\u001b[36mdebug\u001b[m] UE[8] signal lost",
+          "[2026-03-25 15:32:40.718] [rls] [\u001b[36mdebug\u001b[m] UE[9] signal lost",
+          "[2026-03-25 18:29:24.190] [ngap] [\u001b[31m\u001b[1merror\u001b[m] Association terminated for AMF[2]"
+        ]
+      },
+      "symptoms_detected": true,
+      "escalation_level": 0
+    }
+  ],
+  "resolution": {
+    "healed_at": "2026-03-26T00:11:34.389111+00:00",
+    "heal_method": "scheduled",
+    "post_heal_metrics": {
+      "amf": {
+        "metrics": {
+          "amf_session": 0.0,
+          "ran_ue": 0.0,
+          "gnb": 0.0
+        },
+        "badge": "",
+        "source": "prometheus"
+      },
+      "smf": {
+        "metrics": {
+          "fivegs_smffunction_sm_sessionnbr": 4.0,
+          "ues_active": 2.0,
+          "bearers_active": 4.0,
+          "pfcp_sessions_active": 4.0
+        },
+        "badge": "4 PDU",
+        "source": "prometheus"
+      },
+      "upf": {
+        "metrics": {
+          "fivegs_upffunction_upf_sessionnbr": 4.0,
+          "fivegs_ep_n3_gtp_indatapktn3upf": 14786.0,
+          "fivegs_ep_n3_gtp_outdatapktn3upf": 8251.0
+        },
+        "badge": "4 sess",
+        "source": "prometheus"
+      },
+      "pcf": {
+        "metrics": {
+          "fivegs_pcffunction_pa_sessionnbr": 4.0,
+          "fivegs_pcffunction_pa_policyamassoreq": 4.0,
+          "fivegs_pcffunction_pa_policyamassosucc": 4.0,
+          "fivegs_pcffunction_pa_policysmassoreq": 8.0,
+          "fivegs_pcffunction_pa_policysmassosucc": 8.0
+        },
+        "badge": "4 PA",
+        "source": "prometheus"
+      },
+      "pcscf": {
+        "metrics": {
+          "core:rcv_requests_bye": 4.0,
+          "core:rcv_requests_invite": 4.0,
+          "core:rcv_requests_options": 10905.0,
+          "core:rcv_requests_register": 56.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 4.0,
+          "httpclient:connections": 0.0,
+          "httpclient:connfail": 10914.0,
+          "httpclient:connok": 4.0,
+          "ims_usrloc_pcscf:expired_contacts": 8.0,
+          "ims_usrloc_pcscf:registered_contacts": 2.0,
+          "ims_usrloc_pcscf:registered_impus": 8.0,
+          "registrar:accepted_regs": 0.0,
+          "registrar:default_expire": 3600.0,
+          "registrar:default_expires_range": 0.0,
+          "registrar:expires_range": 0.0,
+          "registrar:max_contacts": 0.0,
+          "registrar:max_expires": 0.0,
+          "registrar:rejected_regs": 0.0,
+          "script:register_failed": 0.0,
+          "script:register_success": 28.0,
+          "script:register_time": 9266.0,
+          "sl:1xx_replies": 60.0,
+          "sl:200_replies": 0.0,
+          "sl:4xx_replies": 0.0,
+          "sl:5xx_replies": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "2 reg",
+        "source": "kamcmd"
+      },
+      "icscf": {
+        "metrics": {
+          "cdp:average_response_time": 88.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 30.0,
+          "cdp:replies_response_time": 2668.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_register": 56.0,
+          "ims_icscf:lir_avg_response_time": 73.0,
+          "ims_icscf:lir_replies_received": 2.0,
+          "ims_icscf:lir_replies_response_time": 147.0,
+          "ims_icscf:lir_timeouts": 0.0,
+          "ims_icscf:uar_avg_response_time": 90.0,
+          "ims_icscf:uar_replies_received": 28.0,
+          "ims_icscf:uar_replies_response_time": 2521.0,
+          "ims_icscf:uar_timeouts": 0.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "56 req",
+        "source": "kamcmd"
+      },
+      "scscf": {
+        "metrics": {
+          "cdp:average_response_time": 123.0,
+          "cdp:queuelength": 0.0,
+          "cdp:replies_received": 8.0,
+          "cdp:replies_response_time": 990.0,
+          "cdp:timeout": 0.0,
+          "core:rcv_requests_invite": 2.0,
+          "core:rcv_requests_register": 8.0,
+          "dialog_ng:active": 0.0,
+          "dialog_ng:early": 0.0,
+          "dialog_ng:expired": 0.0,
+          "dialog_ng:processed": 2.0,
+          "ims_auth:mar_avg_response_time": 126.0,
+          "ims_auth:mar_replies_received": 4.0,
+          "ims_auth:mar_replies_response_time": 506.0,
+          "ims_auth:mar_timeouts": 0.0,
+          "ims_registrar_scscf:accepted_regs": 4.0,
+          "ims_registrar_scscf:default_expire": 3600.0,
+          "ims_registrar_scscf:default_expires_range": 0.0,
+          "ims_registrar_scscf:max_contacts": 5.0,
+          "ims_registrar_scscf:max_expires": 3600.0,
+          "ims_registrar_scscf:notifies_in_q": 0.0,
+          "ims_registrar_scscf:rejected_regs": 0.0,
+          "ims_registrar_scscf:sar_avg_response_time": 121.0,
+          "ims_registrar_scscf:sar_replies_received": 4.0,
+          "ims_registrar_scscf:sar_replies_response_time": 484.0,
+          "ims_registrar_scscf:sar_timeouts": 0.0,
+          "ims_usrloc_scscf:active_contacts": 2.0,
+          "ims_usrloc_scscf:active_impus": 6.0,
+          "ims_usrloc_scscf:active_subscriptions": 2.0,
+          "ims_usrloc_scscf:contact_collisions": 1.0,
+          "ims_usrloc_scscf:impu_collisions": 1.0,
+          "ims_usrloc_scscf:subscription_collisions": 1.0,
+          "tmx:active_transactions": 0.0
+        },
+        "badge": "2 reg",
+        "source": "kamcmd"
+      },
+      "mongo": {
+        "metrics": {
+          "subscribers": 2
+        },
+        "badge": "2 subs",
+        "source": "mongosh"
+      }
+    },
+    "recovery_time_seconds": 120.983896,
+    "faults_healed": 2
+  },
+  "rca_label": {
+    "root_cause": "Kill PyHSS AND add 2-second latency to the S-CSCF. This simulates a cascading failure: the HSS is gone (no Diameter auth) AND the S-CSCF is degraded (slow SIP processing). Total IMS outage.",
+    "affected_components": [
+      "scscf",
+      "pyhss"
+    ],
+    "severity": "degraded",
+    "failure_domain": "ims_signaling",
+    "protocol_impact": "SIP"
+  },
+  "challenge_result": {
+    "rca_agent_model": "v3-adk/gemini-2.5-flash+gemini-2.5-pro",
+    "diagnosis_text": "An investigation has been conducted into the 5G SA and IMS service degradation. All specialist findings point to a single, definitive root cause.\n\n### **Final Diagnosis**\n\n- **summary**: The IMS Home Subscriber Server (HSS) is down because its container (`pyhss`) has exited, causing all IMS call and registration attempts to fail.\n- **timeline**:\n    1.  `pyhss` container enters an `exited` state.\n    2.  `scscf` detects the HSS is unreachable and drops its Diameter connection (`read on socket [12] returned 0 > ... dropping`).\n    3.  `icscf`'s Diameter peer state for the HSS transitions to `Closed`.\n    4.  A UE initiates a call, sending an `INVITE` which is forwarded through the `pcscf` and `scscf` to the `icscf`.\n    5.  The `icscf` receives the `INVITE` and attempts to query the HSS to find the assigned S-CSCF for the destination subscriber.\n    6.  The query fails instantly because the connection to the HSS is `Closed`, triggering `cxdx_get_result_code: Failed finding avp` and `ERROR: initial_request` logs.\n    7.  The `icscf` cannot route the call and sends back an error, causing the call to fail.\n- **root_cause**: The `pyhss` Docker container, which provides the critical IMS Home Subscriber Server (HSS) functionality, is in an `exited` state. The HSS is the authoritative database for all subscriber identity, authentication, and routing information. Its complete unavailability means other IMS components cannot perform their functions, breaking the entire IMS signaling flow.\n- **affected_components**: `pyhss`, `icscf`, `scscf`.\n- **recommendation**: Restart the `pyhss` container using the appropriate container management command (e.g., `docker restart pyhss`). After restoring service, investigate the container's logs (e.g., `docker logs pyhss`) to determine the underlying reason for the crash and prevent recurrence.\n- **confidence**: high\n- **explanation**: The root cause of the outage is a critical infrastructure failure. The `pyhss` container, which runs the Home Subscriber Server (HSS), has crashed. The HSS is essential for the IMS network, as it tells components like the I-CSCF and S-CSCF how to authenticate users and where to route calls. Since the HSS is down, all Diameter connections to it are closed. When the I-CSCF receives a new call or registration, its attempt to query the HSS fails immediately. This is the direct cause of the `initial_request` errors and `cxdx_get_avp` failures seen in the logs, resulting in a total failure of all IMS services. Restarting the `pyhss` container will restore HSS functionality and resolve the issue.",
+    "score": {
+      "root_cause_correct": true,
+      "root_cause_rationale": "The agent correctly identified the 'container_kill' on 'pyhss' as the primary root cause, which is one of the actual injected faults.",
+      "component_overlap": 1.0,
+      "component_rationale": "The agent identified both 'pyhss' and 'scscf', which were the two containers targeted by the injected faults. It also listed 'icscf' but this is not penalized.",
+      "severity_correct": true,
+      "severity_rationale": "The agent correctly assessed the severity of the 'pyhss' fault as 'down', 'exited', and 'crashed', matching the 'container_kill' injection.",
+      "fault_type_identified": true,
+      "fault_type_rationale": "The agent identified the fault type for 'pyhss' as 'exited'/'crashed', which accurately describes a 'container_kill' event.",
+      "confidence_calibrated": true,
+      "confidence_rationale": "The agent's high confidence is appropriate as it accurately identified a critical root cause ('pyhss' kill) that explains the total IMS outage, even though it missed a secondary injected fault.",
+      "ranking_position": 1,
+      "ranking_rationale": "The agent provided only one root cause, which was correct, placing it at position 1.",
+      "total_score": 1.0,
+      "summary": "The agent provided an excellent diagnosis, correctly identifying the primary root cause, its affected component, severity, and fault type with high confidence, leading to a complete understanding of the IMS outage."
+    },
+    "time_to_diagnosis_seconds": 107.7,
+    "token_usage": {
+      "input_tokens": 100953,
+      "output_tokens": 3721,
+      "thinking_tokens": 14064,
+      "total_tokens": 118738,
+      "per_phase": [
+        {
+          "agent": "TriageAgent",
+          "tokens": 11428,
+          "tool_calls": 2,
+          "llm_calls": 3
+        },
+        {
+          "agent": "EndToEndTracer",
+          "tokens": 64987,
+          "tool_calls": 8,
+          "llm_calls": 5
+        },
+        {
+          "agent": "DispatchAgent",
+          "tokens": 4760,
+          "tool_calls": 0,
+          "llm_calls": 1
+        },
+        {
+          "agent": "TransportSpecialist",
+          "tokens": 13093,
+          "tool_calls": 2,
+          "llm_calls": 3
+        },
+        {
+          "agent": "SubscriberDataSpecialist",
+          "tokens": 7472,
+          "tool_calls": 1,
+          "llm_calls": 2
+        },
+        {
+          "agent": "IMSSpecialist",
+          "tokens": 9762,
+          "tool_calls": 1,
+          "llm_calls": 2
+        },
+        {
+          "agent": "SynthesisAgent",
+          "tokens": 7236,
+          "tool_calls": 0,
+          "llm_calls": 1
+        }
+      ]
+    }
+  }
+}
